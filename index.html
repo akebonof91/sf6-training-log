@@ -282,9 +282,9 @@ nav.mobile-nav button.active{ color: var(--cyan); }
 
   <nav class="desktop-nav" id="desktopNav">
     <button data-view="dashboard" class="active">ダッシュボード</button>
-    <button data-view="log">練習ログ</button>
     <button data-view="memo">メモ</button>
     <button data-view="matchup">対策ノート</button>
+    <button data-view="cfn">対戦成績</button>
   </nav>
 
   <main id="main">
@@ -296,10 +296,6 @@ nav.mobile-nav button.active{ color: var(--cyan); }
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="12" width="4" height="8" rx="1"/><rect x="10" y="7" width="4" height="13" rx="1"/><rect x="17" y="3" width="4" height="17" rx="1"/></svg>
       <span class="t">状況</span>
     </button>
-    <button data-view="log">
-      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
-      <span class="t">練習ログ</span>
-    </button>
     <button data-view="memo">
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>
       <span class="t">メモ</span>
@@ -308,12 +304,13 @@ nav.mobile-nav button.active{ color: var(--cyan); }
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-7 8-7s8 3 8 7"/></svg>
       <span class="t">対策ノート</span>
     </button>
+    <button data-view="cfn">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 21h8M12 17v4M6 4h12v3a6 6 0 0 1-12 0V4z"/><path d="M6 5H4a2 2 0 0 0 2 4M18 5h2a2 2 0 0 1-2 4"/></svg>
+      <span class="t">対戦成績</span>
+    </button>
   </nav>
 </div>
 
-<div class="modal-overlay" id="modalOverlay">
-  <div class="modal" id="modalBody"></div>
-</div>
 <div class="toast" id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -332,12 +329,11 @@ nav.mobile-nav button.active{ color: var(--cyan); }
 
   const now0 = new Date();
   let state = {
-    sessions: [],
     matchups: {},
     memos: [],
+    cfnMatches: [],
     view: "dashboard",
     matchupOpen: null,
-    timer: { running:false, startedAt:null, category:CATEGORIES[0], character:"" },
     calYear: now0.getFullYear(),
     calMonth: now0.getMonth(),
     selectedDate: null,
@@ -359,84 +355,23 @@ nav.mobile-nav button.active{ color: var(--cyan); }
   // ---------- Data layer (Supabase) ----------
   async function loadAll(){
     try{
-      const [{data: sessions, error: e1}, {data: matchups, error: e2}, {data: memos, error: e3}] = await Promise.all([
-        sb.from('practice_sessions').select('*').order('session_date', {ascending:false}),
+      const [{data: matchups, error: e2}, {data: memos, error: e3}, {data: cfnMatches, error: e4}] = await Promise.all([
         sb.from('matchup_notes').select('*'),
-        sb.from('quick_memos').select('*').order('created_at', {ascending:false})
+        sb.from('quick_memos').select('*').order('created_at', {ascending:false}),
+        sb.from('cfn_matches').select('*').order('played_at', {ascending:false}).limit(1000)
       ]);
-      if(e1 || e2 || e3) throw (e1 || e2 || e3);
-      state.sessions = (sessions||[]).map(s=>({
-        id: s.id, dateISO: s.session_date, duration_sec: s.duration_sec,
-        category: s.category, character: s.character||'', note: s.note||''
-      }));
+      if(e2 || e3 || e4) throw (e2 || e3 || e4);
       state.matchups = {};
       (matchups||[]).forEach(m=>{
         state.matchups[m.character] = { notes: m.notes||'', tags: m.tags||[], rating: m.rating||null, updatedAt: m.updated_at };
       });
       state.memos = (memos||[]).map(m=>({ id:m.id, content:m.content, createdAt:m.created_at }));
+      state.cfnMatches = (cfnMatches||[]);
       setSync('ok');
     }catch(e){
       console.error('load failed', e);
       setSync('err');
       toast('データの読み込みに失敗しました');
-    }
-  }
-
-  async function addSession(session){
-    try{
-      const { data, error } = await sb.from('practice_sessions').insert({
-        session_date: session.dateISO,
-        duration_sec: session.duration_sec,
-        category: session.category,
-        character: session.character || null,
-        note: session.note || null
-      }).select().single();
-      if(error) throw error;
-      state.sessions.push({ id:data.id, dateISO:data.session_date, duration_sec:data.duration_sec, category:data.category, character:data.character||'', note:data.note||'' });
-      setSync('ok');
-      return true;
-    }catch(e){
-      console.error('add session failed', e);
-      setSync('err');
-      toast('保存に失敗しました。通信環境を確認してください');
-      return false;
-    }
-  }
-
-  async function updateSession(id, fields){
-    try{
-      const { data, error } = await sb.from('practice_sessions').update({
-        session_date: fields.dateISO,
-        duration_sec: fields.duration_sec,
-        category: fields.category,
-        character: fields.character || null,
-        note: fields.note || null
-      }).eq('id', id).select().single();
-      if(error) throw error;
-      const idx = state.sessions.findIndex(s=>s.id===id);
-      if(idx>=0){
-        state.sessions[idx] = { id:data.id, dateISO:data.session_date, duration_sec:data.duration_sec, category:data.category, character:data.character||'', note:data.note||'' };
-      }
-      setSync('ok');
-      return true;
-    }catch(e){
-      console.error('update session failed', e);
-      setSync('err');
-      toast('更新に失敗しました');
-      return false;
-    }
-  }
-
-  async function deleteSession(id){
-    try{
-      const { error } = await sb.from('practice_sessions').delete().eq('id', id);
-      if(error) throw error;
-      state.sessions = state.sessions.filter(s=>s.id!==id);
-      setSync('ok');
-    }catch(e){
-      console.error('delete failed', e);
-      setSync('err');
-      toast('削除に失敗しました');
     }
   }
 
@@ -504,15 +439,6 @@ nav.mobile-nav button.active{ color: var(--cyan); }
   }
 
   // ---------- helpers ----------
-  function fmtDuration(totalSec){
-    totalSec = Math.max(0, Math.round(totalSec));
-    const h = Math.floor(totalSec/3600);
-    const m = Math.floor((totalSec%3600)/60);
-    const s = totalSec%60;
-    if(h>0) return `${h}時間${m}分`;
-    if(m>0) return s>0 ? `${m}分${s}秒` : `${m}分`;
-    return `${s}秒`;
-  }
   // ローカルの日付(YYYY-MM-DD)。toISOString()はUTC変換されるため使わない(JST等で日付がずれるバグを回避)
   function todayISO(d=new Date()){
     const y = d.getFullYear();
@@ -528,7 +454,6 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     const d = new Date(iso);
     return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
   }
-  function totalSeconds(sessions){ return sessions.reduce((a,s)=>a+s.duration_sec,0); }
   function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
   function switchView(v){
@@ -539,77 +464,78 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     render();
   }
 
-  // ---------- Dashboard ----------
-  function monthlyBuckets(n){
+  // ---------- Dashboard（対戦成績ベース） ----------
+  function dateKeyLocal(iso){
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  function monthlyMatchBuckets(n){
     const buckets = [];
     const base = new Date();
     for(let i=n-1; i>=0; i--){
       const d = new Date(base.getFullYear(), base.getMonth()-i, 1);
       const y = d.getFullYear(), m = d.getMonth();
       const prefix = `${y}-${String(m+1).padStart(2,'0')}`;
-      const sec = state.sessions.filter(s=>s.dateISO.startsWith(prefix)).reduce((a,s)=>a+s.duration_sec,0);
-      buckets.push({ label: `${m+1}月`, sec, isCurrent: i===0 });
+      const count = state.cfnMatches.filter(x=>dateKeyLocal(x.played_at).startsWith(prefix)).length;
+      buckets.push({ label: `${m+1}月`, count, isCurrent: i===0 });
     }
     return buckets;
   }
 
   function renderDashboard(){
-    const total = totalSeconds(state.sessions);
+    const all = state.cfnMatches;
+    const total = all.length;
+    const wins = all.filter(m=>m.result==='win').length;
+    const winRate = total>0 ? (wins/total*100).toFixed(1) : '0.0';
 
     const days = [];
     for(let i=6;i>=0;i--){
       const d = new Date(); d.setDate(d.getDate()-i);
       const iso = todayISO(d);
-      const sec = totalSeconds(state.sessions.filter(s=>s.dateISO===iso));
-      days.push({iso, sec, isToday: i===0, label: DAY_LABELS[d.getDay()]});
+      const count = all.filter(m=>dateKeyLocal(m.played_at)===iso).length;
+      days.push({iso, count, isToday: i===0, label: DAY_LABELS[d.getDay()]});
     }
-    const maxSecWeek = Math.max(...days.map(d=>d.sec), 1);
-    const weekTotal = days.reduce((a,d)=>a+d.sec,0);
+    const maxCountWeek = Math.max(...days.map(d=>d.count), 1);
 
     let streak = 0;
     for(let i=0;i<365;i++){
       const d = new Date(); d.setDate(d.getDate()-i);
       const iso = todayISO(d);
-      const has = state.sessions.some(s=>s.dateISO===iso);
+      const has = all.some(m=>dateKeyLocal(m.played_at)===iso);
       if(has) streak++;
       else if(i===0) continue;
       else break;
     }
 
-    const catTotals = {};
-    CATEGORIES.forEach(c=>catTotals[c]=0);
-    state.sessions.forEach(s=>{ catTotals[s.category] = (catTotals[s.category]||0) + s.duration_sec; });
-    const catMax = Math.max(...Object.values(catTotals), 1);
+    const recent = [...all].sort((a,b)=>b.played_at.localeCompare(a.played_at)).slice(0,5);
 
-    const recent = [...state.sessions].sort((a,b)=> (b.dateISO+b.id).localeCompare(a.dateISO+a.id)).slice(0,5);
-
-    const monthly = monthlyBuckets(6);
-    const maxSecMonth = Math.max(...monthly.map(b=>b.sec), 1);
+    const monthly = monthlyMatchBuckets(6);
+    const maxCountMonth = Math.max(...monthly.map(b=>b.count), 1);
 
     // ---- calendar data ----
     const year = state.calYear, month = state.calMonth;
     const firstWeekday = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month+1, 0).getDate();
-    const dayTotals = {};
-    state.sessions.forEach(s=>{ dayTotals[s.dateISO] = (dayTotals[s.dateISO]||0) + s.duration_sec; });
+    const dayCounts = {};
+    all.forEach(m=>{ const k = dateKeyLocal(m.played_at); dayCounts[k] = (dayCounts[k]||0) + 1; });
     const cells = [];
     for(let i=0;i<firstWeekday;i++) cells.push(null);
     for(let d=1; d<=daysInMonth; d++){
       const iso = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-      cells.push({ day:d, iso, sec: dayTotals[iso]||0 });
+      cells.push({ day:d, iso, count: dayCounts[iso]||0 });
     }
-    const monthMax = Math.max(...cells.filter(c=>c).map(c=>c.sec), 1);
+    const monthMax = Math.max(...cells.filter(c=>c).map(c=>c.count), 1);
     const todayIso = todayISO();
 
     main.innerHTML = `
       <div class="view active">
         <div class="hero-stat">
-          <div class="big">${fmtDuration(total)}</div>
-          <div class="sub">総練習時間</div>
+          <div class="big">${total}戦</div>
+          <div class="sub">通算対戦数（勝率 ${winRate}%）</div>
         </div>
         <div class="stat-grid" style="grid-template-columns: repeat(2,1fr);">
-          <div class="mini-stat"><div class="num">${fmtDuration(weekTotal)}</div><div class="lbl">今週</div></div>
-          <div class="mini-stat"><div class="num">${streak}日</div><div class="lbl">連続記録</div></div>
+          <div class="mini-stat"><div class="num">${days.reduce((a,d)=>a+d.count,0)}戦</div><div class="lbl">直近7日間</div></div>
+          <div class="mini-stat"><div class="num">${streak}日</div><div class="lbl">連続対戦日数</div></div>
         </div>
 
         <div class="section-title">直近7日間</div>
@@ -617,18 +543,18 @@ nav.mobile-nav button.active{ color: var(--cyan); }
           <div class="week-chart">
             ${days.map(d=>`
               <div class="bar-wrap">
-                <div class="bar ${d.isToday?'today':''}" style="height:${Math.max(4,(d.sec/maxSecWeek)*100)}%" title="${fmtDuration(d.sec)}"></div>
+                <div class="bar ${d.isToday?'today':''}" style="height:${Math.max(4,(d.count/maxCountWeek)*100)}%" title="${d.count}戦"></div>
                 <div class="lbl">${d.label}</div>
               </div>`).join('')}
           </div>
         </div>
 
-        <div class="section-title">月ごとの推移（直近6か月）</div>
+        <div class="section-title">月ごとの対戦数（直近6か月）</div>
         <div class="card">
           <div class="week-chart">
             ${monthly.map(b=>`
               <div class="bar-wrap">
-                <div class="bar ${b.isCurrent?'today':''}" style="height:${Math.max(4,(b.sec/maxSecMonth)*100)}%" title="${fmtDuration(b.sec)}"></div>
+                <div class="bar ${b.isCurrent?'today':''}" style="height:${Math.max(4,(b.count/maxCountMonth)*100)}%" title="${b.count}戦"></div>
                 <div class="lbl">${b.label}</div>
               </div>`).join('')}
           </div>
@@ -647,10 +573,10 @@ nav.mobile-nav button.active{ color: var(--cyan); }
           <div class="cal-grid">
             ${cells.map(c=>{
               if(!c) return `<div class="cal-cell empty-cell"></div>`;
-              const intensity = c.sec>0 ? Math.min(1, 0.22+0.78*(c.sec/monthMax)) : 0;
+              const intensity = c.count>0 ? Math.min(1, 0.22+0.78*(c.count/monthMax)) : 0;
               const isToday = c.iso===todayIso;
               const isSelected = state.selectedDate===c.iso;
-              return `<div class="cal-cell ${isToday?'today':''} ${isSelected?'selected':''}" data-date="${c.iso}" style="${c.sec>0?`background: rgba(41,224,255,${intensity.toFixed(2)});`:''}">
+              return `<div class="cal-cell ${isToday?'today':''} ${isSelected?'selected':''}" data-date="${c.iso}" style="${c.count>0?`background: rgba(41,224,255,${intensity.toFixed(2)});`:''}">
                 <span class="cal-day">${c.day}</span>
               </div>`;
             }).join('')}
@@ -658,26 +584,16 @@ nav.mobile-nav button.active{ color: var(--cyan); }
           ${state.selectedDate ? renderSelectedDayDetail(state.selectedDate) : ''}
         </div>
 
-        <div class="section-title">種類別 内訳</div>
+        <div class="section-title">最近の対戦</div>
         <div class="card">
-          ${CATEGORIES.map(c=>`
-            <div class="cat-bar-row">
-              <div class="name">${c}</div>
-              <div class="track"><div class="fill" style="width:${(catTotals[c]/catMax)*100}%"></div></div>
-              <div class="val">${fmtDuration(catTotals[c])}</div>
-            </div>`).join('')}
-        </div>
-
-        <div class="section-title">最近の記録</div>
-        <div class="card">
-          ${recent.length? recent.map(s=>`
+          ${recent.length? recent.map(m=>`
             <div class="recent-item">
               <div class="left">
-                <div class="cat">${s.category}${s.character?' ・ '+s.character:''}</div>
-                <div class="meta">${fmtDateShort(s.dateISO)}</div>
+                <div class="cat">${m.result==='win'?'WIN':(m.result==='loss'?'LOSS':'?')} ・ ${m.my_character||'?'} vs ${m.opponent_character||'?'}</div>
+                <div class="meta">${fmtDateShort(dateKeyLocal(m.played_at))}</div>
               </div>
-              <div class="dur">${fmtDuration(s.duration_sec)}</div>
-            </div>`).join('') : `<div class="empty">まだ記録がありません。「練習ログ」タブから記録を始めましょう。</div>`}
+              <div class="dur">${m.my_master_rating!=null ? 'MR '+m.my_master_rating : ''}</div>
+            </div>`).join('') : `<div class="empty">まだ対戦データがありません。sync-cfn.jsを実行して同期してみてください。</div>`}
         </div>
       </div>
     `;
@@ -702,15 +618,15 @@ nav.mobile-nav button.active{ color: var(--cyan); }
   }
 
   function renderSelectedDayDetail(iso){
-    const daySessions = state.sessions.filter(s=>s.dateISO===iso);
-    const total = daySessions.reduce((a,s)=>a+s.duration_sec,0);
+    const dayMatches = state.cfnMatches.filter(m=>dateKeyLocal(m.played_at)===iso);
+    const wins = dayMatches.filter(m=>m.result==='win').length;
     return `
       <div class="cal-detail">
-        <div class="cal-detail-head">${fmtDateShort(iso)} ・ 合計 ${fmtDuration(total)}</div>
-        ${daySessions.length? daySessions.map(s=>`
+        <div class="cal-detail-head">${fmtDateShort(iso)} ・ ${dayMatches.length}戦（${wins}勝${dayMatches.length-wins}敗）</div>
+        ${dayMatches.length? dayMatches.map(m=>`
           <div class="recent-item">
-            <div class="left"><div class="cat">${s.category}${s.character?' ・ '+s.character:''}</div></div>
-            <div class="dur">${fmtDuration(s.duration_sec)}</div>
+            <div class="left"><div class="cat">${m.result==='win'?'WIN':(m.result==='loss'?'LOSS':'?')} ・ ${m.my_character||'?'} vs ${m.opponent_character||'?'}</div></div>
+            <div class="dur">${m.my_master_rating!=null ? 'MR '+m.my_master_rating : ''}</div>
           </div>`).join('') : `<div class="empty">この日の記録はありません</div>`}
       </div>
     `;
@@ -824,194 +740,6 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     });
   }
 
-  // ---------- Practice Log ----------
-  let timerTickHandle = null;
-
-  function renderLog(){
-    const grouped = {};
-    const sorted = [...state.sessions].sort((a,b)=> (b.dateISO+b.id).localeCompare(a.dateISO+a.id));
-    sorted.forEach(s=>{ (grouped[s.dateISO] = grouped[s.dateISO]||[]).push(s); });
-    const dateKeys = Object.keys(grouped).sort().reverse();
-
-    main.innerHTML = `
-      <div class="view active">
-        <div class="card timer-card">
-          <div class="timer-setup ${state.timer.running?'solo':''}">
-            ${state.timer.running ? '' : `
-              <select id="timerCat">
-                ${CATEGORIES.map(c=>`<option value="${c}" ${state.timer.category===c?'selected':''}>${c}</option>`).join('')}
-              </select>
-              <select id="timerChar">
-                <option value="">キャラ指定なし</option>
-                ${CHARACTERS.map(c=>`<option value="${c}" ${state.timer.character===c?'selected':''}>${c}</option>`).join('')}
-              </select>
-            `}
-          </div>
-          <div class="timer-display ${state.timer.running?'running':''}" id="timerDisplay">00:00:00</div>
-          <button class="btn btn-primary btn-block ${state.timer.running?'running':''}" id="timerStartBtn">
-            ${state.timer.running ? '停止して記録' : 'タイマー開始'}
-          </button>
-        </div>
-
-        <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
-          <span>記録一覧</span>
-          <button class="btn" id="manualAddBtn" style="padding:5px 12px; font-size:12.5px;">＋ 手動で追加</button>
-        </div>
-
-        ${dateKeys.length===0 ? `<div class="card"><div class="empty">記録がありません</div></div>` :
-          dateKeys.map(dk=>`
-            <div class="day-group-label">${fmtDateShort(dk)}</div>
-            <div class="card">
-              ${grouped[dk].map(s=>`
-                <div class="log-item" data-id="${s.id}">
-                  <div class="left">
-                    <span class="tag-cat">${s.category}</span>
-                    ${s.character?`<div class="char-name">${s.character}</div>`:''}
-                    ${s.note?`<div class="note-txt">${escapeHtml(s.note)}</div>`:''}
-                  </div>
-                  <div class="right">
-                    <div class="dur">${fmtDuration(s.duration_sec)}</div>
-                    <div class="icon-row">
-                      <button class="iconbtn" data-edit="${s.id}" title="編集">✎</button>
-                      <button class="iconbtn danger" data-del="${s.id}" title="削除">✕</button>
-                    </div>
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-          `).join('')
-        }
-      </div>
-    `;
-
-    $$('[data-del]').forEach(btn=>{
-      btn.addEventListener('click', async ()=>{
-        btn.disabled = true;
-        await deleteSession(btn.dataset.del);
-        render();
-      });
-    });
-    $$('[data-edit]').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        const session = state.sessions.find(s=>s.id===btn.dataset.edit);
-        if(session) openManualAddModal(session);
-      });
-    });
-
-    $("#manualAddBtn").addEventListener('click', ()=>openManualAddModal(null));
-
-    const catSel = $("#timerCat"), charSel = $("#timerChar");
-    if(catSel) catSel.addEventListener('change', ()=> state.timer.category = catSel.value);
-    if(charSel) charSel.addEventListener('change', ()=> state.timer.character = charSel.value);
-
-    $("#timerStartBtn").addEventListener('click', ()=>{
-      if(state.timer.running){ stopTimer(); }
-      else{ startTimer(); }
-    });
-
-    updateTimerDisplay();
-  }
-
-  function startTimer(){
-    state.timer.running = true;
-    state.timer.startedAt = Date.now();
-    render();
-    timerTickHandle = setInterval(updateTimerDisplay, 1000);
-  }
-
-  async function stopTimer(){
-    clearInterval(timerTickHandle);
-    const elapsedMs = Date.now() - state.timer.startedAt;
-    const seconds = Math.max(1, Math.round(elapsedMs/1000));
-    const btn = $("#timerStartBtn");
-    if(btn){ btn.disabled = true; btn.textContent = '保存中…'; }
-    await addSession({
-      dateISO: todayISO(),
-      duration_sec: seconds,
-      category: state.timer.category,
-      character: state.timer.character || '',
-      note: ''
-    });
-    state.timer.running = false;
-    state.timer.startedAt = null;
-    render();
-  }
-
-  function updateTimerDisplay(){
-    const el = $("#timerDisplay");
-    if(!el) return;
-    if(!state.timer.running){ el.textContent = "00:00:00"; return; }
-    const elapsed = Math.floor((Date.now()-state.timer.startedAt)/1000);
-    const h = String(Math.floor(elapsed/3600)).padStart(2,'0');
-    const m = String(Math.floor((elapsed%3600)/60)).padStart(2,'0');
-    const s = String(elapsed%60).padStart(2,'0');
-    el.textContent = `${h}:${m}:${s}`;
-  }
-
-  function openManualAddModal(existingSession){
-    const isEdit = !!existingSession;
-    const overlay = $("#modalOverlay");
-    const body = $("#modalBody");
-
-    const initMin = isEdit ? Math.floor(existingSession.duration_sec/60) : '';
-    const initSec = isEdit ? existingSession.duration_sec%60 : '';
-
-    body.innerHTML = `
-      <h3>${isEdit ? '記録を編集' : '練習記録を追加'}</h3>
-      <div class="field">
-        <label class="field-label">日付</label>
-        <input type="date" id="mDate" value="${isEdit ? existingSession.dateISO : todayISO()}">
-      </div>
-      <div class="field">
-        <label class="field-label">時間</label>
-        <div style="display:flex; gap:8px; align-items:center;">
-          <input type="number" id="mMin" min="0" placeholder="分" value="${initMin}" style="flex:1;">
-          <span style="color:var(--text-faint); font-size:13px;">分</span>
-          <input type="number" id="mSec" min="0" max="59" placeholder="秒" value="${initSec}" style="flex:1;">
-          <span style="color:var(--text-faint); font-size:13px;">秒</span>
-        </div>
-      </div>
-      <div class="field">
-        <label class="field-label">種類</label>
-        <select id="mCat">${CATEGORIES.map(c=>`<option value="${c}" ${isEdit && existingSession.category===c?'selected':''}>${c}</option>`).join('')}</select>
-      </div>
-      <div class="field">
-        <label class="field-label">対象キャラ（任意）</label>
-        <select id="mChar"><option value="">指定なし</option>${CHARACTERS.map(c=>`<option value="${c}" ${isEdit && existingSession.character===c?'selected':''}>${c}</option>`).join('')}</select>
-      </div>
-      <div class="field">
-        <label class="field-label">メモ（任意）</label>
-        <textarea id="mNote" style="min-height:60px;" placeholder="気づいたことなど">${isEdit ? escapeHtml(existingSession.note||'') : ''}</textarea>
-      </div>
-      <div class="btn-row" style="margin-top:16px;">
-        <button class="btn" id="mCancel" style="flex:1;">キャンセル</button>
-        <button class="btn btn-primary" id="mSave" style="flex:1;">${isEdit ? '更新' : '保存'}</button>
-      </div>
-    `;
-    overlay.classList.add('show');
-    $("#mCancel").addEventListener('click', closeModal);
-    overlay.addEventListener('click', e=>{ if(e.target===overlay) closeModal(); }, {once:true});
-    $("#mSave").addEventListener('click', async ()=>{
-      const min = parseInt($("#mMin").value, 10) || 0;
-      const sec = parseInt($("#mSec").value, 10) || 0;
-      const totalSec = min*60 + sec;
-      if(totalSec<=0){ $("#mMin").style.borderColor='var(--pink)'; $("#mSec").style.borderColor='var(--pink)'; return; }
-      const saveBtn = $("#mSave");
-      saveBtn.disabled = true; saveBtn.textContent = isEdit ? '更新中…' : '保存中…';
-      const fields = {
-        dateISO: $("#mDate").value || todayISO(),
-        duration_sec: totalSec,
-        category: $("#mCat").value,
-        character: $("#mChar").value,
-        note: $("#mNote").value.trim()
-      };
-      const ok = isEdit ? await updateSession(existingSession.id, fields) : await addSession(fields);
-      if(ok){ closeModal(); render(); }
-      else{ saveBtn.disabled = false; saveBtn.textContent = isEdit ? '更新' : '保存'; }
-    });
-  }
-  function closeModal(){ $("#modalOverlay").classList.remove('show'); }
-
   // ---------- Quick memo ----------
   function renderMemo(){
     main.innerHTML = `
@@ -1092,9 +820,121 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     });
   }
 
+  // ---------- CFN 対戦成績 ----------
+  function monthKeyLocal(iso){
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  }
+  function groupByCount(matches, keyFn){
+    const map = {};
+    matches.forEach(m=>{
+      const k = keyFn(m) || '不明';
+      if(!map[k]) map[k] = { count:0, win:0 };
+      map[k].count++;
+      if(m.result==='win') map[k].win++;
+    });
+    return map;
+  }
+  function sortedEntries(map){
+    return Object.entries(map).sort((a,b)=>b[1].count-a[1].count);
+  }
+
+  function renderCfn(){
+    const all = state.cfnMatches;
+
+    if(all.length===0){
+      main.innerHTML = `
+        <div class="view active">
+          <div class="section-title">対戦成績</div>
+          <div class="card"><div class="empty">まだ同期されたデータがありません。<br>お手元のPCで sync-cfn.js を実行すると、ここにBucklerの対戦履歴が反映されます。</div></div>
+        </div>
+      `;
+      return;
+    }
+
+    const nowKey = monthKeyLocal(new Date().toISOString());
+    const monthMatches = all.filter(m=>monthKeyLocal(m.played_at)===nowKey);
+
+    const monthTotal = monthMatches.length;
+    const monthWins = monthMatches.filter(m=>m.result==='win').length;
+    const monthWinRate = monthTotal>0 ? (monthWins/monthTotal*100).toFixed(1) : '0.0';
+
+    const mrSorted = [...monthMatches].filter(m=>m.my_master_rating!=null).sort((a,b)=>a.played_at.localeCompare(b.played_at));
+    const mrStart = mrSorted.length ? mrSorted[0].my_master_rating : null;
+    const mrEnd = mrSorted.length ? mrSorted[mrSorted.length-1].my_master_rating : null;
+
+    const monthMyChar = sortedEntries(groupByCount(monthMatches, m=>m.my_character));
+    const monthOppChar = sortedEntries(groupByCount(monthMatches, m=>m.opponent_character));
+
+    const allTotal = all.length;
+    const allWins = all.filter(m=>m.result==='win').length;
+    const allWinRate = allTotal>0 ? (allWins/allTotal*100).toFixed(1) : '0.0';
+
+    const myCharAll = sortedEntries(groupByCount(all, m=>m.my_character));
+    const oppCharAll = sortedEntries(groupByCount(all, m=>m.opponent_character));
+
+    const recent = [...all].sort((a,b)=>b.played_at.localeCompare(a.played_at)).slice(0,15);
+
+    const topOpp = monthOppChar[0];
+
+    main.innerHTML = `
+      <div class="view active">
+        <div class="section-title">今月のサマリー（${nowKey}）</div>
+        <div class="card">
+          <div class="stat-grid" style="grid-template-columns: repeat(3,1fr);">
+            <div class="mini-stat"><div class="num">${monthTotal}戦</div><div class="lbl">対戦数</div></div>
+            <div class="mini-stat"><div class="num">${monthWinRate}%</div><div class="lbl">勝率</div></div>
+            <div class="mini-stat"><div class="num">${mrStart!=null ? `${mrStart}→${mrEnd}` : '—'}</div><div class="lbl">MR推移</div></div>
+          </div>
+          ${topOpp ? `<div class="updated-note" style="text-align:left; margin-top:12px;">一番戦った相手: ${topOpp[0]} ${topOpp[1].count}戦（勝率 ${(topOpp[1].win/topOpp[1].count*100).toFixed(1)}%）</div>` : ''}
+        </div>
+
+        <div class="section-title">通算成績</div>
+        <div class="card">
+          <div class="stat-grid" style="grid-template-columns: repeat(2,1fr);">
+            <div class="mini-stat"><div class="num">${allTotal}戦</div><div class="lbl">総対戦数</div></div>
+            <div class="mini-stat"><div class="num">${allWinRate}%</div><div class="lbl">通算勝率</div></div>
+          </div>
+        </div>
+
+        <div class="section-title">使用キャラ別成績</div>
+        <div class="card">
+          ${myCharAll.length ? myCharAll.map(([name,v])=>`
+            <div class="cat-bar-row">
+              <div class="name">${name}</div>
+              <div class="track"><div class="fill" style="width:${(v.win/v.count*100)}%"></div></div>
+              <div class="val">${v.count}戦 ${(v.win/v.count*100).toFixed(0)}%</div>
+            </div>`).join('') : `<div class="empty">データがありません</div>`}
+        </div>
+
+        <div class="section-title">対戦相手キャラ別成績</div>
+        <div class="card">
+          ${oppCharAll.length ? oppCharAll.map(([name,v])=>`
+            <div class="cat-bar-row">
+              <div class="name">${name}</div>
+              <div class="track"><div class="fill" style="width:${(v.win/v.count*100)}%"></div></div>
+              <div class="val">${v.count}戦 ${(v.win/v.count*100).toFixed(0)}%</div>
+            </div>`).join('') : `<div class="empty">データがありません</div>`}
+        </div>
+
+        <div class="section-title">最近の対戦</div>
+        <div class="card">
+          ${recent.map(m=>`
+            <div class="recent-item">
+              <div class="left">
+                <div class="cat">${m.result==='win'?'WIN':(m.result==='loss'?'LOSS':'?')} ・ ${m.my_character||'?'} vs ${m.opponent_character||'?'}</div>
+                <div class="meta">${new Date(m.played_at).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})} ・ ${m.battle_type||''}</div>
+              </div>
+              <div class="dur" style="color:${m.result==='win'?'var(--cyan)':(m.result==='loss'?'var(--pink)':'var(--text-faint)')}">${m.my_master_rating!=null ? 'MR '+m.my_master_rating : ''}</div>
+            </div>`).join('')}
+        </div>
+      </div>
+    `;
+  }
+
   // ---------- Export ----------
   async function exportData(){
-    const payload = { sessions: state.sessions, matchups: state.matchups, memos: state.memos, exportedAt: new Date().toISOString() };
+    const payload = { matchups: state.matchups, memos: state.memos, cfnMatches: state.cfnMatches, exportedAt: new Date().toISOString() };
     const text = JSON.stringify(payload, null, 2);
     try{
       await navigator.clipboard.writeText(text);
@@ -1113,8 +953,8 @@ nav.mobile-nav button.active{ color: var(--cyan); }
   function render(){
     if(state.view==='dashboard') renderDashboard();
     else if(state.view==='matchup') renderMatchup();
-    else if(state.view==='log') renderLog();
     else if(state.view==='memo') renderMemo();
+    else if(state.view==='cfn') renderCfn();
   }
 
   function isMobile(){ return window.innerWidth < 720; }
