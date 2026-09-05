@@ -282,9 +282,9 @@ nav.mobile-nav button.active{ color: var(--cyan); }
 
   <nav class="desktop-nav" id="desktopNav">
     <button data-view="dashboard" class="active">ダッシュボード</button>
-    <button data-view="matchup">対策ノート</button>
     <button data-view="log">練習ログ</button>
     <button data-view="memo">メモ</button>
+    <button data-view="matchup">対策ノート</button>
   </nav>
 
   <main id="main">
@@ -296,10 +296,6 @@ nav.mobile-nav button.active{ color: var(--cyan); }
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="12" width="4" height="8" rx="1"/><rect x="10" y="7" width="4" height="13" rx="1"/><rect x="17" y="3" width="4" height="17" rx="1"/></svg>
       <span class="t">状況</span>
     </button>
-    <button data-view="matchup">
-      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-7 8-7s8 3 8 7"/></svg>
-      <span class="t">対策ノート</span>
-    </button>
     <button data-view="log">
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
       <span class="t">練習ログ</span>
@@ -307,6 +303,10 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     <button data-view="memo">
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>
       <span class="t">メモ</span>
+    </button>
+    <button data-view="matchup">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-7 8-7s8 3 8 7"/></svg>
+      <span class="t">対策ノート</span>
     </button>
   </nav>
 </div>
@@ -327,7 +327,7 @@ nav.mobile-nav button.active{ color: var(--cyan); }
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   const CHARACTERS = ["リュウ","ルーク","春麗","ケン","ザンギエフ","ダルシム","エドモンド本田","ブランカ","ガイル","キャミィ","ディージェイ","ジェイミー","マノン","マリーザ","キンバリー","リリー","JP","ジュリ","ラシード","A.K.I.","エド","豪鬼","テリー","舞","エレナ","M.バイソン","サガット","C.ヴァイパー","アレックス","イングリッド","ヤスミン"];
-  const CATEGORIES = ["トレモ","ランクマ","カジュアルマッチ","キャラ対策","リプレイ検証","その他"];
+  const CATEGORIES = ["トレモ","ランクマ","カジュアルマッチ","座学","その他"];
   const DAY_LABELS = ["日","月","火","水","木","金","土"];
 
   const now0 = new Date();
