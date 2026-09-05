@@ -555,7 +555,6 @@ nav.mobile-nav button.active{ color: var(--cyan); }
 
   function renderDashboard(){
     const total = totalSeconds(state.sessions);
-    const sortedNotes = Object.entries(state.matchups).filter(([k,v])=>v && (v.notes || (v.tags&&v.tags.length)));
 
     const days = [];
     for(let i=6;i>=0;i--){
@@ -608,10 +607,9 @@ nav.mobile-nav button.active{ color: var(--cyan); }
           <div class="big">${fmtDuration(total)}</div>
           <div class="sub">総練習時間</div>
         </div>
-        <div class="stat-grid">
+        <div class="stat-grid" style="grid-template-columns: repeat(2,1fr);">
           <div class="mini-stat"><div class="num">${fmtDuration(weekTotal)}</div><div class="lbl">今週</div></div>
           <div class="mini-stat"><div class="num">${streak}日</div><div class="lbl">連続記録</div></div>
-          <div class="mini-stat"><div class="num">${sortedNotes.length}</div><div class="lbl">対策済みキャラ</div></div>
         </div>
 
         <div class="section-title">直近7日間</div>
