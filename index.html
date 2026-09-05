@@ -4,9 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="robots" content="noindex, nofollow">
-<title>TRAINING LOG — SF6</title>
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='18' fill='%230c0d11'/%3E%3Crect x='30' y='55' width='10' height='30' fill='%2329e0ff'/%3E%3Crect x='45' y='35' width='10' height='50' fill='%2329e0ff'/%3E%3Crect x='60' y='15' width='10' height='70' fill='%23ff3d63'/%3E%3C/svg%3E">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='18' fill='%230c0d11'/%3E%3Crect x='30' y='55' width='10' height='30' fill='%2329e0ff'/%3E%3Crect x='45' y='35' width='10' height='50' fill='%2329e0ff'/%3E%3Crect x='60' y='15' width='10' height='70' fill='%23ff3d63'/%3E%3C/svg%3E">
+<meta name="theme-color" content="#0c0d11">
+<link rel="manifest" href="manifest.json">
+<title>さとうスト6メモ</title>
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/icon-192.png">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
 
@@ -68,7 +70,7 @@ header{
   background: linear-gradient(180deg, var(--cyan), var(--pink));
   border-radius:2px; display:inline-block;
 }
-.brand h1{ font-size: 26px; line-height:1; text-transform: uppercase; letter-spacing: 0.04em; }
+.brand h1{ font-size: 24px; line-height:1; letter-spacing: 0.02em; }
 .brand h1 span{ color: var(--cyan); }
 .brand small{ color: var(--text-faint); font-size:11px; letter-spacing:0.08em; text-transform:uppercase; font-family:'Inter',sans-serif; }
 .header-actions{ display:flex; align-items:center; gap:8px; }
@@ -196,10 +198,12 @@ textarea:focus, input:focus, select:focus{ outline:none; border-color:var(--cyan
 .log-item .tag-cat{ display:inline-block; font-size:10.5px; padding:2px 7px; border-radius:5px; background:var(--panel-alt); color:var(--text-mute); border:1px solid var(--border); margin-bottom:4px; }
 .log-item .char-name{ font-size:14px; color:var(--text); }
 .log-item .note-txt{ font-size:12px; color:var(--text-faint); margin-top:3px; max-width:46ch; }
-.log-item .right{ text-align:right; flex-shrink:0; }
+.log-item .right{ text-align:right; flex-shrink:0; display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
 .log-item .dur{ font-family:'JetBrains Mono'; color:var(--cyan); font-size:15px; }
-.log-item .del{ background:none; border:none; color:var(--text-faint); cursor:pointer; font-size:15px; margin-top:4px; padding:2px 4px; }
-.log-item .del:hover{ color:var(--pink); }
+.log-item .icon-row{ display:flex; gap:2px; }
+.log-item .iconbtn{ background:none; border:none; color:var(--text-faint); cursor:pointer; font-size:14px; padding:2px 5px; }
+.log-item .iconbtn:hover{ color:var(--cyan); }
+.log-item .iconbtn.danger:hover{ color:var(--pink); }
 
 .day-group-label{ font-size:11px; color:var(--text-faint); margin:16px 0 4px; text-transform:uppercase; letter-spacing:0.04em; }
 .day-group-label:first-child{ margin-top:2px; }
@@ -228,6 +232,13 @@ textarea:focus, input:focus, select:focus{ outline:none; border-color:var(--cyan
 .cal-day{ font-size:10.5px; color:var(--text-mute); }
 .cal-detail{ margin-top:14px; padding-top:14px; border-top:1px solid var(--border-soft); }
 .cal-detail .cal-detail-head{ font-size:12.5px; color:var(--text-mute); margin-bottom:8px; }
+
+.memo-card-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+.memo-content{ white-space:pre-wrap; font-size:14px; line-height:1.6; flex:1; }
+.memo-actions{ display:flex; gap:2px; flex-shrink:0; }
+.memo-actions button{ background:none; border:none; color:var(--text-faint); cursor:pointer; font-size:14px; padding:2px 5px; }
+.memo-actions button:hover{ color:var(--cyan); }
+.memo-actions button.danger:hover{ color:var(--pink); }
 
 nav.mobile-nav{
   position: fixed; bottom:0; left:0; right:0; max-width:960px; margin:0 auto;
@@ -259,7 +270,7 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     <div class="brand">
       <span class="mark"></span>
       <div>
-        <h1>TRAINING<span> LOG</span></h1>
+        <h1>さとう<span>スト6</span>メモ</h1>
         <br><small>Street Fighter 6 Practice Tracker</small>
       </div>
     </div>
@@ -329,7 +340,8 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     timer: { running:false, startedAt:null, category:CATEGORIES[0], character:"" },
     calYear: now0.getFullYear(),
     calMonth: now0.getMonth(),
-    selectedDate: null
+    selectedDate: null,
+    editingMemoId: null
   };
 
   const $ = sel => document.querySelector(sel);
@@ -391,6 +403,30 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     }
   }
 
+  async function updateSession(id, fields){
+    try{
+      const { data, error } = await sb.from('practice_sessions').update({
+        session_date: fields.dateISO,
+        duration_sec: fields.duration_sec,
+        category: fields.category,
+        character: fields.character || null,
+        note: fields.note || null
+      }).eq('id', id).select().single();
+      if(error) throw error;
+      const idx = state.sessions.findIndex(s=>s.id===id);
+      if(idx>=0){
+        state.sessions[idx] = { id:data.id, dateISO:data.session_date, duration_sec:data.duration_sec, category:data.category, character:data.character||'', note:data.note||'' };
+      }
+      setSync('ok');
+      return true;
+    }catch(e){
+      console.error('update session failed', e);
+      setSync('err');
+      toast('更新に失敗しました');
+      return false;
+    }
+  }
+
   async function deleteSession(id){
     try{
       const { error } = await sb.from('practice_sessions').delete().eq('id', id);
@@ -434,6 +470,22 @@ nav.mobile-nav button.active{ color: var(--cyan); }
       console.error('add memo failed', e);
       setSync('err');
       toast('メモの保存に失敗しました');
+      return false;
+    }
+  }
+
+  async function updateMemo(id, content){
+    try{
+      const { data, error } = await sb.from('quick_memos').update({ content }).eq('id', id).select().single();
+      if(error) throw error;
+      const idx = state.memos.findIndex(m=>m.id===id);
+      if(idx>=0) state.memos[idx].content = data.content;
+      setSync('ok');
+      return true;
+    }catch(e){
+      console.error('update memo failed', e);
+      setSync('err');
+      toast('メモの更新に失敗しました');
       return false;
     }
   }
@@ -482,11 +534,25 @@ nav.mobile-nav button.active{ color: var(--cyan); }
   function switchView(v){
     state.view = v;
     state.matchupOpen = null;
+    state.editingMemoId = null;
     $$('.desktop-nav button, .mobile-nav button').forEach(b=>{ b.classList.toggle('active', b.dataset.view===v); });
     render();
   }
 
   // ---------- Dashboard ----------
+  function monthlyBuckets(n){
+    const buckets = [];
+    const base = new Date();
+    for(let i=n-1; i>=0; i--){
+      const d = new Date(base.getFullYear(), base.getMonth()-i, 1);
+      const y = d.getFullYear(), m = d.getMonth();
+      const prefix = `${y}-${String(m+1).padStart(2,'0')}`;
+      const sec = state.sessions.filter(s=>s.dateISO.startsWith(prefix)).reduce((a,s)=>a+s.duration_sec,0);
+      buckets.push({ label: `${m+1}月`, sec, isCurrent: i===0 });
+    }
+    return buckets;
+  }
+
   function renderDashboard(){
     const total = totalSeconds(state.sessions);
     const sortedNotes = Object.entries(state.matchups).filter(([k,v])=>v && (v.notes || (v.tags&&v.tags.length)));
@@ -517,6 +583,9 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     const catMax = Math.max(...Object.values(catTotals), 1);
 
     const recent = [...state.sessions].sort((a,b)=> (b.dateISO+b.id).localeCompare(a.dateISO+a.id)).slice(0,5);
+
+    const monthly = monthlyBuckets(6);
+    const maxSecMonth = Math.max(...monthly.map(b=>b.sec), 1);
 
     // ---- calendar data ----
     const year = state.calYear, month = state.calMonth;
@@ -550,8 +619,19 @@ nav.mobile-nav button.active{ color: var(--cyan); }
           <div class="week-chart">
             ${days.map(d=>`
               <div class="bar-wrap">
-                <div class="bar ${d.isToday?'today':''}" style="height:${Math.max(4,(d.sec/maxSecWeek)*100)}%"></div>
+                <div class="bar ${d.isToday?'today':''}" style="height:${Math.max(4,(d.sec/maxSecWeek)*100)}%" title="${fmtDuration(d.sec)}"></div>
                 <div class="lbl">${d.label}</div>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <div class="section-title">月ごとの推移（直近6か月）</div>
+        <div class="card">
+          <div class="week-chart">
+            ${monthly.map(b=>`
+              <div class="bar-wrap">
+                <div class="bar ${b.isCurrent?'today':''}" style="height:${Math.max(4,(b.sec/maxSecMonth)*100)}%" title="${fmtDuration(b.sec)}"></div>
+                <div class="lbl">${b.label}</div>
               </div>`).join('')}
           </div>
         </div>
@@ -793,7 +873,10 @@ nav.mobile-nav button.active{ color: var(--cyan); }
                   </div>
                   <div class="right">
                     <div class="dur">${fmtDuration(s.duration_sec)}</div>
-                    <button class="del" data-del="${s.id}">✕</button>
+                    <div class="icon-row">
+                      <button class="iconbtn" data-edit="${s.id}" title="編集">✎</button>
+                      <button class="iconbtn danger" data-del="${s.id}" title="削除">✕</button>
+                    </div>
                   </div>
                 </div>
               `).join('')}
@@ -810,8 +893,14 @@ nav.mobile-nav button.active{ color: var(--cyan); }
         render();
       });
     });
+    $$('[data-edit]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const session = state.sessions.find(s=>s.id===btn.dataset.edit);
+        if(session) openManualAddModal(session);
+      });
+    });
 
-    $("#manualAddBtn").addEventListener('click', openManualAddModal);
+    $("#manualAddBtn").addEventListener('click', ()=>openManualAddModal(null));
 
     const catSel = $("#timerCat"), charSel = $("#timerChar");
     if(catSel) catSel.addEventListener('change', ()=> state.timer.category = catSel.value);
@@ -861,39 +950,44 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     el.textContent = `${h}:${m}:${s}`;
   }
 
-  function openManualAddModal(){
+  function openManualAddModal(existingSession){
+    const isEdit = !!existingSession;
     const overlay = $("#modalOverlay");
     const body = $("#modalBody");
+
+    const initMin = isEdit ? Math.floor(existingSession.duration_sec/60) : '';
+    const initSec = isEdit ? existingSession.duration_sec%60 : '';
+
     body.innerHTML = `
-      <h3>練習記録を追加</h3>
+      <h3>${isEdit ? '記録を編集' : '練習記録を追加'}</h3>
       <div class="field">
         <label class="field-label">日付</label>
-        <input type="date" id="mDate" value="${todayISO()}">
+        <input type="date" id="mDate" value="${isEdit ? existingSession.dateISO : todayISO()}">
       </div>
       <div class="field">
         <label class="field-label">時間</label>
         <div style="display:flex; gap:8px; align-items:center;">
-          <input type="number" id="mMin" min="0" placeholder="分" style="flex:1;">
+          <input type="number" id="mMin" min="0" placeholder="分" value="${initMin}" style="flex:1;">
           <span style="color:var(--text-faint); font-size:13px;">分</span>
-          <input type="number" id="mSec" min="0" max="59" placeholder="秒" style="flex:1;">
+          <input type="number" id="mSec" min="0" max="59" placeholder="秒" value="${initSec}" style="flex:1;">
           <span style="color:var(--text-faint); font-size:13px;">秒</span>
         </div>
       </div>
       <div class="field">
         <label class="field-label">種類</label>
-        <select id="mCat">${CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join('')}</select>
+        <select id="mCat">${CATEGORIES.map(c=>`<option value="${c}" ${isEdit && existingSession.category===c?'selected':''}>${c}</option>`).join('')}</select>
       </div>
       <div class="field">
         <label class="field-label">対象キャラ（任意）</label>
-        <select id="mChar"><option value="">指定なし</option>${CHARACTERS.map(c=>`<option value="${c}">${c}</option>`).join('')}</select>
+        <select id="mChar"><option value="">指定なし</option>${CHARACTERS.map(c=>`<option value="${c}" ${isEdit && existingSession.character===c?'selected':''}>${c}</option>`).join('')}</select>
       </div>
       <div class="field">
         <label class="field-label">メモ（任意）</label>
-        <textarea id="mNote" style="min-height:60px;" placeholder="気づいたことなど"></textarea>
+        <textarea id="mNote" style="min-height:60px;" placeholder="気づいたことなど">${isEdit ? escapeHtml(existingSession.note||'') : ''}</textarea>
       </div>
       <div class="btn-row" style="margin-top:16px;">
         <button class="btn" id="mCancel" style="flex:1;">キャンセル</button>
-        <button class="btn btn-primary" id="mSave" style="flex:1;">保存</button>
+        <button class="btn btn-primary" id="mSave" style="flex:1;">${isEdit ? '更新' : '保存'}</button>
       </div>
     `;
     overlay.classList.add('show');
@@ -905,16 +999,17 @@ nav.mobile-nav button.active{ color: var(--cyan); }
       const totalSec = min*60 + sec;
       if(totalSec<=0){ $("#mMin").style.borderColor='var(--pink)'; $("#mSec").style.borderColor='var(--pink)'; return; }
       const saveBtn = $("#mSave");
-      saveBtn.disabled = true; saveBtn.textContent = '保存中…';
-      const ok = await addSession({
+      saveBtn.disabled = true; saveBtn.textContent = isEdit ? '更新中…' : '保存中…';
+      const fields = {
         dateISO: $("#mDate").value || todayISO(),
         duration_sec: totalSec,
         category: $("#mCat").value,
         character: $("#mChar").value,
         note: $("#mNote").value.trim()
-      });
+      };
+      const ok = isEdit ? await updateSession(existingSession.id, fields) : await addSession(fields);
       if(ok){ closeModal(); render(); }
-      else{ saveBtn.disabled = false; saveBtn.textContent = '保存'; }
+      else{ saveBtn.disabled = false; saveBtn.textContent = isEdit ? '更新' : '保存'; }
     });
   }
   function closeModal(){ $("#modalOverlay").classList.remove('show'); }
@@ -929,15 +1024,31 @@ nav.mobile-nav button.active{ color: var(--cyan); }
           <button class="btn btn-primary btn-block" id="memoAddBtn" style="margin-top:10px;">追加</button>
         </div>
         <div class="section-title">メモ一覧</div>
-        ${state.memos.length? state.memos.map(m=>`
-          <div class="card" style="margin-top:8px;">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
-              <div style="white-space:pre-wrap; font-size:14px; line-height:1.6; flex:1;">${escapeHtml(m.content)}</div>
-              <button class="del" data-memo-del="${m.id}" style="flex-shrink:0;">✕</button>
+        ${state.memos.length? state.memos.map(m=>{
+          if(state.editingMemoId === m.id){
+            return `
+              <div class="card" style="margin-top:8px;">
+                <textarea id="editMemoArea" style="min-height:70px;">${escapeHtml(m.content)}</textarea>
+                <div class="btn-row" style="margin-top:8px;">
+                  <button class="btn" data-memo-cancel="${m.id}" style="flex:1;">キャンセル</button>
+                  <button class="btn btn-primary" data-memo-save="${m.id}" style="flex:1;">保存</button>
+                </div>
+              </div>
+            `;
+          }
+          return `
+            <div class="card" style="margin-top:8px;">
+              <div class="memo-card-head">
+                <div class="memo-content">${escapeHtml(m.content)}</div>
+                <div class="memo-actions">
+                  <button data-memo-edit="${m.id}" title="編集">✎</button>
+                  <button class="danger" data-memo-del="${m.id}" title="削除">✕</button>
+                </div>
+              </div>
+              <div class="updated-note" style="text-align:left; margin-top:8px;">${fmtDateTime(m.createdAt)}</div>
             </div>
-            <div class="updated-note" style="text-align:left; margin-top:8px;">${fmtDateTime(m.createdAt)}</div>
-          </div>
-        `).join('') : `<div class="card"><div class="empty">まだメモがありません</div></div>`}
+          `;
+        }).join('') : `<div class="card"><div class="empty">まだメモがありません</div></div>`}
       </div>
     `;
 
@@ -954,6 +1065,30 @@ nav.mobile-nav button.active{ color: var(--cyan); }
       btn.addEventListener('click', async ()=>{
         btn.disabled = true;
         await deleteMemo(btn.dataset.memoDel);
+        render();
+      });
+    });
+    $$('[data-memo-edit]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        state.editingMemoId = btn.dataset.memoEdit;
+        render();
+      });
+    });
+    $$('[data-memo-cancel]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        state.editingMemoId = null;
+        render();
+      });
+    });
+    $$('[data-memo-save]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const id = btn.dataset.memoSave;
+        const ta = $("#editMemoArea");
+        const val = ta.value.trim();
+        if(!val) return;
+        btn.disabled = true; btn.textContent = '保存中…';
+        const ok = await updateMemo(id, val);
+        if(ok){ state.editingMemoId = null; }
         render();
       });
     });
@@ -997,6 +1132,10 @@ nav.mobile-nav button.active{ color: var(--cyan); }
 
     await loadAll();
     render();
+
+    if('serviceWorker' in navigator){
+      // ページ単体で完結させるため、Service Workerは使わずmanifestのみでインストール可能にする
+    }
   }
 
   init();
