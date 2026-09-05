@@ -111,13 +111,12 @@ main{ flex:1; padding: 18px 16px 90px; }
   background: linear-gradient(135deg, rgba(41,224,255,0.10), rgba(255,61,99,0.06));
   border:1px solid var(--border); border-radius: var(--radius);
 }
-.hero-stat .big{ font-size: 54px; line-height:0.9; font-family:'Barlow Condensed', sans-serif; font-weight:800; color: var(--text); }
-.hero-stat .big .unit{ font-size:20px; color:var(--cyan); margin-left:4px; }
+.hero-stat .big{ font-size: 40px; line-height:1; font-family:'Barlow Condensed', sans-serif; font-weight:800; color: var(--text); }
 .hero-stat .sub{ color: var(--text-mute); font-size:13px; padding-bottom:4px; }
 
 .stat-grid{ display:grid; grid-template-columns: repeat(3,1fr); gap:10px; margin-top:12px; }
 .mini-stat{ background: var(--panel); border:1px solid var(--border-soft); border-radius:var(--radius); padding: 12px 10px; text-align:center; }
-.mini-stat .num{ font-family:'Barlow Condensed'; font-weight:700; font-size:24px; }
+.mini-stat .num{ font-family:'Barlow Condensed'; font-weight:700; font-size:20px; }
 .mini-stat .lbl{ font-size:10.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.04em; margin-top:2px;}
 
 .week-chart{ display:flex; align-items:flex-end; gap:8px; height:90px; margin-top:8px; }
@@ -130,7 +129,7 @@ main{ flex:1; padding: 18px 16px 90px; }
 .cat-bar-row .name{ width:96px; font-size:12.5px; color:var(--text-mute); flex-shrink:0; }
 .cat-bar-row .track{ flex:1; height:8px; background:var(--panel-alt); border-radius:4px; overflow:hidden; }
 .cat-bar-row .fill{ height:100%; background: linear-gradient(90deg, var(--cyan-dim), var(--cyan)); border-radius:4px; }
-.cat-bar-row .val{ width:52px; text-align:right; font-size:11.5px; color:var(--text-faint); flex-shrink:0; }
+.cat-bar-row .val{ width:64px; text-align:right; font-size:11.5px; color:var(--text-faint); flex-shrink:0; }
 
 .recent-item{ display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid var(--border-soft); }
 .recent-item:last-child{ border-bottom:none; }
@@ -213,6 +212,23 @@ textarea:focus, input:focus, select:focus{ outline:none; border-color:var(--cyan
 .modal h3{ font-size:20px; margin-bottom:14px; }
 .field{ margin-bottom:12px; }
 
+.cal-header-row{ display:flex; justify-content:space-between; align-items:center; margin: 22px 0 10px; }
+.cal-header-row .section-title{ margin:0; }
+.cal-nav-group{ display:flex; align-items:center; gap:8px; }
+.cal-nav-group .cal-label{ font-size:13px; color:var(--text-mute); min-width:78px; text-align:center; display:inline-block; }
+.cal-nav-btn{ background:none; border:1px solid var(--border); color:var(--text-mute); width:26px; height:26px; border-radius:6px; cursor:pointer; font-size:14px; line-height:1; }
+.cal-nav-btn:hover{ border-color:var(--cyan); color:var(--cyan); }
+.cal-weekdays{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-bottom:6px; }
+.cal-weekdays div{ text-align:center; font-size:10.5px; color:var(--text-faint); }
+.cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+.cal-cell{ aspect-ratio:1; border-radius:6px; border:1px solid var(--border-soft); padding:4px; cursor:pointer; position:relative; }
+.cal-cell.empty-cell{ border:none; cursor:default; }
+.cal-cell.today{ border-color:var(--gold); }
+.cal-cell.selected{ outline:2px solid var(--cyan); outline-offset:-2px; }
+.cal-day{ font-size:10.5px; color:var(--text-mute); }
+.cal-detail{ margin-top:14px; padding-top:14px; border-top:1px solid var(--border-soft); }
+.cal-detail .cal-detail-head{ font-size:12.5px; color:var(--text-mute); margin-bottom:8px; }
+
 nav.mobile-nav{
   position: fixed; bottom:0; left:0; right:0; max-width:960px; margin:0 auto;
   background: rgba(20,22,28,0.92); backdrop-filter: blur(10px); border-top:1px solid var(--border-soft);
@@ -257,6 +273,7 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     <button data-view="dashboard" class="active">ダッシュボード</button>
     <button data-view="matchup">対策ノート</button>
     <button data-view="log">練習ログ</button>
+    <button data-view="memo">メモ</button>
   </nav>
 
   <main id="main">
@@ -275,6 +292,10 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     <button data-view="log">
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
       <span class="t">練習ログ</span>
+    </button>
+    <button data-view="memo">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>
+      <span class="t">メモ</span>
     </button>
   </nav>
 </div>
@@ -298,22 +319,24 @@ nav.mobile-nav button.active{ color: var(--cyan); }
   const CATEGORIES = ["トレモ","ランクマ","カジュアルマッチ","キャラ対策","リプレイ検証","その他"];
   const DAY_LABELS = ["日","月","火","水","木","金","土"];
 
+  const now0 = new Date();
   let state = {
     sessions: [],
     matchups: {},
+    memos: [],
     view: "dashboard",
     matchupOpen: null,
-    timer: { running:false, startedAt:null, category:CATEGORIES[0], character:"" }
+    timer: { running:false, startedAt:null, category:CATEGORIES[0], character:"" },
+    calYear: now0.getFullYear(),
+    calMonth: now0.getMonth(),
+    selectedDate: null
   };
 
   const $ = sel => document.querySelector(sel);
   const $$ = sel => Array.from(document.querySelectorAll(sel));
   const main = $("#main");
 
-  function setSync(status){
-    const dot = $("#syncDot");
-    dot.className = status; // '', 'ok', 'err'
-  }
+  function setSync(status){ $("#syncDot").className = status; }
   function toast(msg){
     const el = $("#toast");
     el.textContent = msg;
@@ -324,19 +347,21 @@ nav.mobile-nav button.active{ color: var(--cyan); }
   // ---------- Data layer (Supabase) ----------
   async function loadAll(){
     try{
-      const [{data: sessions, error: e1}, {data: matchups, error: e2}] = await Promise.all([
+      const [{data: sessions, error: e1}, {data: matchups, error: e2}, {data: memos, error: e3}] = await Promise.all([
         sb.from('practice_sessions').select('*').order('session_date', {ascending:false}),
-        sb.from('matchup_notes').select('*')
+        sb.from('matchup_notes').select('*'),
+        sb.from('quick_memos').select('*').order('created_at', {ascending:false})
       ]);
-      if(e1 || e2) throw (e1 || e2);
+      if(e1 || e2 || e3) throw (e1 || e2 || e3);
       state.sessions = (sessions||[]).map(s=>({
-        id: s.id, dateISO: s.session_date, duration_min: s.duration_min,
+        id: s.id, dateISO: s.session_date, duration_sec: s.duration_sec,
         category: s.category, character: s.character||'', note: s.note||''
       }));
       state.matchups = {};
       (matchups||[]).forEach(m=>{
         state.matchups[m.character] = { notes: m.notes||'', tags: m.tags||[], rating: m.rating||null, updatedAt: m.updated_at };
       });
+      state.memos = (memos||[]).map(m=>({ id:m.id, content:m.content, createdAt:m.created_at }));
       setSync('ok');
     }catch(e){
       console.error('load failed', e);
@@ -349,13 +374,13 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     try{
       const { data, error } = await sb.from('practice_sessions').insert({
         session_date: session.dateISO,
-        duration_min: session.duration_min,
+        duration_sec: session.duration_sec,
         category: session.category,
         character: session.character || null,
         note: session.note || null
       }).select().single();
       if(error) throw error;
-      state.sessions.push({ id:data.id, dateISO:data.session_date, duration_min:data.duration_min, category:data.category, character:data.character||'', note:data.note||'' });
+      state.sessions.push({ id:data.id, dateISO:data.session_date, duration_sec:data.duration_sec, category:data.category, character:data.character||'', note:data.note||'' });
       setSync('ok');
       return true;
     }catch(e){
@@ -398,19 +423,60 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     }
   }
 
-  // ---------- helpers ----------
-  function fmtMin(min){
-    min = Math.round(min);
-    if(min < 60) return min + "分";
-    const h = Math.floor(min/60), m = min%60;
-    return m ? `${h}時間${m}分` : `${h}時間`;
+  async function addMemo(content){
+    try{
+      const { data, error } = await sb.from('quick_memos').insert({ content }).select().single();
+      if(error) throw error;
+      state.memos.unshift({ id:data.id, content:data.content, createdAt:data.created_at });
+      setSync('ok');
+      return true;
+    }catch(e){
+      console.error('add memo failed', e);
+      setSync('err');
+      toast('メモの保存に失敗しました');
+      return false;
+    }
   }
-  function todayISO(d=new Date()){ return d.toISOString().slice(0,10); }
+
+  async function deleteMemo(id){
+    try{
+      const { error } = await sb.from('quick_memos').delete().eq('id', id);
+      if(error) throw error;
+      state.memos = state.memos.filter(m=>m.id!==id);
+      setSync('ok');
+    }catch(e){
+      console.error('delete memo failed', e);
+      setSync('err');
+      toast('削除に失敗しました');
+    }
+  }
+
+  // ---------- helpers ----------
+  function fmtDuration(totalSec){
+    totalSec = Math.max(0, Math.round(totalSec));
+    const h = Math.floor(totalSec/3600);
+    const m = Math.floor((totalSec%3600)/60);
+    const s = totalSec%60;
+    if(h>0) return `${h}時間${m}分`;
+    if(m>0) return s>0 ? `${m}分${s}秒` : `${m}分`;
+    return `${s}秒`;
+  }
+  // ローカルの日付(YYYY-MM-DD)。toISOString()はUTC変換されるため使わない(JST等で日付がずれるバグを回避)
+  function todayISO(d=new Date()){
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
   function fmtDateShort(iso){
     const d = new Date(iso+"T00:00:00");
     return `${d.getMonth()+1}/${d.getDate()} (${DAY_LABELS[d.getDay()]})`;
   }
-  function totalMinutes(sessions){ return sessions.reduce((a,s)=>a+s.duration_min,0); }
+  function fmtDateTime(iso){
+    const d = new Date(iso);
+    return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  }
+  function totalSeconds(sessions){ return sessions.reduce((a,s)=>a+s.duration_sec,0); }
   function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
   function switchView(v){
@@ -422,18 +488,18 @@ nav.mobile-nav button.active{ color: var(--cyan); }
 
   // ---------- Dashboard ----------
   function renderDashboard(){
-    const total = totalMinutes(state.sessions);
+    const total = totalSeconds(state.sessions);
     const sortedNotes = Object.entries(state.matchups).filter(([k,v])=>v && (v.notes || (v.tags&&v.tags.length)));
 
     const days = [];
     for(let i=6;i>=0;i--){
       const d = new Date(); d.setDate(d.getDate()-i);
       const iso = todayISO(d);
-      const min = totalMinutes(state.sessions.filter(s=>s.dateISO===iso));
-      days.push({iso, min, isToday: i===0, label: DAY_LABELS[d.getDay()]});
+      const sec = totalSeconds(state.sessions.filter(s=>s.dateISO===iso));
+      days.push({iso, sec, isToday: i===0, label: DAY_LABELS[d.getDay()]});
     }
-    const maxMin = Math.max(...days.map(d=>d.min), 1);
-    const weekTotal = days.reduce((a,d)=>a+d.min,0);
+    const maxSecWeek = Math.max(...days.map(d=>d.sec), 1);
+    const weekTotal = days.reduce((a,d)=>a+d.sec,0);
 
     let streak = 0;
     for(let i=0;i<365;i++){
@@ -447,41 +513,83 @@ nav.mobile-nav button.active{ color: var(--cyan); }
 
     const catTotals = {};
     CATEGORIES.forEach(c=>catTotals[c]=0);
-    state.sessions.forEach(s=>{ catTotals[s.category] = (catTotals[s.category]||0) + s.duration_min; });
+    state.sessions.forEach(s=>{ catTotals[s.category] = (catTotals[s.category]||0) + s.duration_sec; });
     const catMax = Math.max(...Object.values(catTotals), 1);
 
     const recent = [...state.sessions].sort((a,b)=> (b.dateISO+b.id).localeCompare(a.dateISO+a.id)).slice(0,5);
 
+    // ---- calendar data ----
+    const year = state.calYear, month = state.calMonth;
+    const firstWeekday = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month+1, 0).getDate();
+    const dayTotals = {};
+    state.sessions.forEach(s=>{ dayTotals[s.dateISO] = (dayTotals[s.dateISO]||0) + s.duration_sec; });
+    const cells = [];
+    for(let i=0;i<firstWeekday;i++) cells.push(null);
+    for(let d=1; d<=daysInMonth; d++){
+      const iso = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      cells.push({ day:d, iso, sec: dayTotals[iso]||0 });
+    }
+    const monthMax = Math.max(...cells.filter(c=>c).map(c=>c.sec), 1);
+    const todayIso = todayISO();
+
     main.innerHTML = `
       <div class="view active">
         <div class="hero-stat">
-          <div class="big">${Math.floor(total/60)}<span class="unit">時間</span>${total%60}<span class="unit">分</span></div>
+          <div class="big">${fmtDuration(total)}</div>
           <div class="sub">総練習時間</div>
         </div>
         <div class="stat-grid">
-          <div class="mini-stat"><div class="num">${fmtMin(weekTotal)}</div><div class="lbl">今週</div></div>
+          <div class="mini-stat"><div class="num">${fmtDuration(weekTotal)}</div><div class="lbl">今週</div></div>
           <div class="mini-stat"><div class="num">${streak}日</div><div class="lbl">連続記録</div></div>
           <div class="mini-stat"><div class="num">${sortedNotes.length}</div><div class="lbl">対策済みキャラ</div></div>
         </div>
+
         <div class="section-title">直近7日間</div>
         <div class="card">
           <div class="week-chart">
             ${days.map(d=>`
               <div class="bar-wrap">
-                <div class="bar ${d.isToday?'today':''}" style="height:${Math.max(4,(d.min/maxMin)*100)}%"></div>
+                <div class="bar ${d.isToday?'today':''}" style="height:${Math.max(4,(d.sec/maxSecWeek)*100)}%"></div>
                 <div class="lbl">${d.label}</div>
               </div>`).join('')}
           </div>
         </div>
+
+        <div class="cal-header-row">
+          <div class="section-title">カレンダー</div>
+          <div class="cal-nav-group">
+            <button class="cal-nav-btn" id="calPrev">‹</button>
+            <span class="cal-label">${year}年${month+1}月</span>
+            <button class="cal-nav-btn" id="calNext">›</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="cal-weekdays">${DAY_LABELS.map(l=>`<div>${l}</div>`).join('')}</div>
+          <div class="cal-grid">
+            ${cells.map(c=>{
+              if(!c) return `<div class="cal-cell empty-cell"></div>`;
+              const intensity = c.sec>0 ? Math.min(1, 0.22+0.78*(c.sec/monthMax)) : 0;
+              const isToday = c.iso===todayIso;
+              const isSelected = state.selectedDate===c.iso;
+              return `<div class="cal-cell ${isToday?'today':''} ${isSelected?'selected':''}" data-date="${c.iso}" style="${c.sec>0?`background: rgba(41,224,255,${intensity.toFixed(2)});`:''}">
+                <span class="cal-day">${c.day}</span>
+              </div>`;
+            }).join('')}
+          </div>
+          ${state.selectedDate ? renderSelectedDayDetail(state.selectedDate) : ''}
+        </div>
+
         <div class="section-title">種類別 内訳</div>
         <div class="card">
           ${CATEGORIES.map(c=>`
             <div class="cat-bar-row">
               <div class="name">${c}</div>
               <div class="track"><div class="fill" style="width:${(catTotals[c]/catMax)*100}%"></div></div>
-              <div class="val">${fmtMin(catTotals[c])}</div>
+              <div class="val">${fmtDuration(catTotals[c])}</div>
             </div>`).join('')}
         </div>
+
         <div class="section-title">最近の記録</div>
         <div class="card">
           ${recent.length? recent.map(s=>`
@@ -490,9 +598,42 @@ nav.mobile-nav button.active{ color: var(--cyan); }
                 <div class="cat">${s.category}${s.character?' ・ '+s.character:''}</div>
                 <div class="meta">${fmtDateShort(s.dateISO)}</div>
               </div>
-              <div class="dur">${fmtMin(s.duration_min)}</div>
+              <div class="dur">${fmtDuration(s.duration_sec)}</div>
             </div>`).join('') : `<div class="empty">まだ記録がありません。「練習ログ」タブから記録を始めましょう。</div>`}
         </div>
+      </div>
+    `;
+
+    $("#calPrev").addEventListener('click', ()=>{
+      state.calMonth--; if(state.calMonth<0){ state.calMonth=11; state.calYear--; }
+      state.selectedDate = null;
+      renderDashboard();
+    });
+    $("#calNext").addEventListener('click', ()=>{
+      state.calMonth++; if(state.calMonth>11){ state.calMonth=0; state.calYear++; }
+      state.selectedDate = null;
+      renderDashboard();
+    });
+    $$('.cal-cell[data-date]').forEach(cell=>{
+      cell.addEventListener('click', ()=>{
+        const d = cell.dataset.date;
+        state.selectedDate = state.selectedDate===d ? null : d;
+        renderDashboard();
+      });
+    });
+  }
+
+  function renderSelectedDayDetail(iso){
+    const daySessions = state.sessions.filter(s=>s.dateISO===iso);
+    const total = daySessions.reduce((a,s)=>a+s.duration_sec,0);
+    return `
+      <div class="cal-detail">
+        <div class="cal-detail-head">${fmtDateShort(iso)} ・ 合計 ${fmtDuration(total)}</div>
+        ${daySessions.length? daySessions.map(s=>`
+          <div class="recent-item">
+            <div class="left"><div class="cat">${s.category}${s.character?' ・ '+s.character:''}</div></div>
+            <div class="dur">${fmtDuration(s.duration_sec)}</div>
+          </div>`).join('') : `<div class="empty">この日の記録はありません</div>`}
       </div>
     `;
   }
@@ -651,7 +792,7 @@ nav.mobile-nav button.active{ color: var(--cyan); }
                     ${s.note?`<div class="note-txt">${escapeHtml(s.note)}</div>`:''}
                   </div>
                   <div class="right">
-                    <div class="dur">${fmtMin(s.duration_min)}</div>
+                    <div class="dur">${fmtDuration(s.duration_sec)}</div>
                     <button class="del" data-del="${s.id}">✕</button>
                   </div>
                 </div>
@@ -694,12 +835,12 @@ nav.mobile-nav button.active{ color: var(--cyan); }
   async function stopTimer(){
     clearInterval(timerTickHandle);
     const elapsedMs = Date.now() - state.timer.startedAt;
-    const minutes = Math.max(1, Math.round(elapsedMs/60000));
+    const seconds = Math.max(1, Math.round(elapsedMs/1000));
     const btn = $("#timerStartBtn");
     if(btn){ btn.disabled = true; btn.textContent = '保存中…'; }
     await addSession({
       dateISO: todayISO(),
-      duration_min: minutes,
+      duration_sec: seconds,
       category: state.timer.category,
       character: state.timer.character || '',
       note: ''
@@ -730,8 +871,13 @@ nav.mobile-nav button.active{ color: var(--cyan); }
         <input type="date" id="mDate" value="${todayISO()}">
       </div>
       <div class="field">
-        <label class="field-label">時間（分）</label>
-        <input type="number" id="mDuration" min="1" placeholder="例: 30">
+        <label class="field-label">時間</label>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <input type="number" id="mMin" min="0" placeholder="分" style="flex:1;">
+          <span style="color:var(--text-faint); font-size:13px;">分</span>
+          <input type="number" id="mSec" min="0" max="59" placeholder="秒" style="flex:1;">
+          <span style="color:var(--text-faint); font-size:13px;">秒</span>
+        </div>
       </div>
       <div class="field">
         <label class="field-label">種類</label>
@@ -754,13 +900,15 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     $("#mCancel").addEventListener('click', closeModal);
     overlay.addEventListener('click', e=>{ if(e.target===overlay) closeModal(); }, {once:true});
     $("#mSave").addEventListener('click', async ()=>{
-      const dur = parseInt($("#mDuration").value, 10);
-      if(!dur || dur<=0){ $("#mDuration").style.borderColor='var(--pink)'; return; }
+      const min = parseInt($("#mMin").value, 10) || 0;
+      const sec = parseInt($("#mSec").value, 10) || 0;
+      const totalSec = min*60 + sec;
+      if(totalSec<=0){ $("#mMin").style.borderColor='var(--pink)'; $("#mSec").style.borderColor='var(--pink)'; return; }
       const saveBtn = $("#mSave");
       saveBtn.disabled = true; saveBtn.textContent = '保存中…';
       const ok = await addSession({
         dateISO: $("#mDate").value || todayISO(),
-        duration_min: dur,
+        duration_sec: totalSec,
         category: $("#mCat").value,
         character: $("#mChar").value,
         note: $("#mNote").value.trim()
@@ -771,8 +919,49 @@ nav.mobile-nav button.active{ color: var(--cyan); }
   }
   function closeModal(){ $("#modalOverlay").classList.remove('show'); }
 
+  // ---------- Quick memo ----------
+  function renderMemo(){
+    main.innerHTML = `
+      <div class="view active">
+        <div class="card">
+          <label class="field-label">新しいメモ</label>
+          <textarea id="memoInput" placeholder="気づいたこと、思いついたことを一言" style="min-height:70px;"></textarea>
+          <button class="btn btn-primary btn-block" id="memoAddBtn" style="margin-top:10px;">追加</button>
+        </div>
+        <div class="section-title">メモ一覧</div>
+        ${state.memos.length? state.memos.map(m=>`
+          <div class="card" style="margin-top:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+              <div style="white-space:pre-wrap; font-size:14px; line-height:1.6; flex:1;">${escapeHtml(m.content)}</div>
+              <button class="del" data-memo-del="${m.id}" style="flex-shrink:0;">✕</button>
+            </div>
+            <div class="updated-note" style="text-align:left; margin-top:8px;">${fmtDateTime(m.createdAt)}</div>
+          </div>
+        `).join('') : `<div class="card"><div class="empty">まだメモがありません</div></div>`}
+      </div>
+    `;
+
+    $("#memoAddBtn").addEventListener('click', async ()=>{
+      const ta = $("#memoInput");
+      const val = ta.value.trim();
+      if(!val) return;
+      const btn = $("#memoAddBtn");
+      btn.disabled = true; btn.textContent = '保存中…';
+      await addMemo(val);
+      render();
+    });
+    $$('[data-memo-del]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        btn.disabled = true;
+        await deleteMemo(btn.dataset.memoDel);
+        render();
+      });
+    });
+  }
+
+  // ---------- Export ----------
   async function exportData(){
-    const payload = { sessions: state.sessions, matchups: state.matchups, exportedAt: new Date().toISOString() };
+    const payload = { sessions: state.sessions, matchups: state.matchups, memos: state.memos, exportedAt: new Date().toISOString() };
     const text = JSON.stringify(payload, null, 2);
     try{
       await navigator.clipboard.writeText(text);
@@ -792,6 +981,7 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     if(state.view==='dashboard') renderDashboard();
     else if(state.view==='matchup') renderMatchup();
     else if(state.view==='log') renderLog();
+    else if(state.view==='memo') renderMemo();
   }
 
   function isMobile(){ return window.innerWidth < 720; }
