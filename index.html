@@ -337,7 +337,8 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     calYear: now0.getFullYear(),
     calMonth: now0.getMonth(),
     selectedDate: null,
-    editingMemoId: null
+    editingMemoId: null,
+    cfnFilter: "all"
   };
 
   const $ = sel => document.querySelector(sel);
@@ -840,9 +841,9 @@ nav.mobile-nav button.active{ color: var(--cyan); }
   }
 
   function renderCfn(){
-    const all = state.cfnMatches;
+    const rawAll = state.cfnMatches;
 
-    if(all.length===0){
+    if(rawAll.length===0){
       main.innerHTML = `
         <div class="view active">
           <div class="section-title">対戦成績</div>
@@ -851,6 +852,19 @@ nav.mobile-nav button.active{ color: var(--cyan); }
       `;
       return;
     }
+
+    const preferredOrder = ["ランクマッチ","バトルハブ","カスタムルーム","カジュアルマッチ"];
+    const typeCounts = {};
+    rawAll.forEach(m=>{ const t = m.battle_type || '不明'; typeCounts[t] = (typeCounts[t]||0)+1; });
+    const types = Object.keys(typeCounts).sort((a,b)=>{
+      const ia = preferredOrder.indexOf(a), ib = preferredOrder.indexOf(b);
+      if(ia!==-1 && ib!==-1) return ia-ib;
+      if(ia!==-1) return -1;
+      if(ib!==-1) return 1;
+      return typeCounts[b]-typeCounts[a];
+    });
+    if(state.cfnFilter!=='all' && !types.includes(state.cfnFilter)) state.cfnFilter = 'all';
+    const all = state.cfnFilter==='all' ? rawAll : rawAll.filter(m=>(m.battle_type||'不明')===state.cfnFilter);
 
     const nowKey = monthKeyLocal(new Date().toISOString());
     const monthMatches = all.filter(m=>monthKeyLocal(m.played_at)===nowKey);
@@ -863,7 +877,6 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     const mrStart = mrSorted.length ? mrSorted[0].my_master_rating : null;
     const mrEnd = mrSorted.length ? mrSorted[mrSorted.length-1].my_master_rating : null;
 
-    const monthMyChar = sortedEntries(groupByCount(monthMatches, m=>m.my_character));
     const monthOppChar = sortedEntries(groupByCount(monthMatches, m=>m.opponent_character));
 
     const allTotal = all.length;
@@ -879,6 +892,12 @@ nav.mobile-nav button.active{ color: var(--cyan); }
 
     main.innerHTML = `
       <div class="view active">
+        <div class="section-title">対戦形式</div>
+        <div class="rating-row" id="cfnFilterRow" style="flex-wrap:wrap;">
+          <button class="rating-btn ${state.cfnFilter==='all'?'sel-fav':''}" data-filter="all" style="flex:0 0 auto; padding:9px 14px;">すべて（${rawAll.length}）</button>
+          ${types.map(t=>`<button class="rating-btn ${state.cfnFilter===t?'sel-fav':''}" data-filter="${t}" style="flex:0 0 auto; padding:9px 14px;">${t}（${typeCounts[t]}）</button>`).join('')}
+        </div>
+
         <div class="section-title">今月のサマリー（${nowKey}）</div>
         <div class="card">
           <div class="stat-grid" style="grid-template-columns: repeat(3,1fr);">
@@ -919,17 +938,24 @@ nav.mobile-nav button.active{ color: var(--cyan); }
 
         <div class="section-title">最近の対戦</div>
         <div class="card">
-          ${recent.map(m=>`
+          ${recent.length ? recent.map(m=>`
             <div class="recent-item">
               <div class="left">
                 <div class="cat">${m.result==='win'?'WIN':(m.result==='loss'?'LOSS':'?')} ・ ${m.my_character||'?'} vs ${m.opponent_character||'?'}</div>
                 <div class="meta">${new Date(m.played_at).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})} ・ ${m.battle_type||''}</div>
               </div>
               <div class="dur" style="color:${m.result==='win'?'var(--cyan)':(m.result==='loss'?'var(--pink)':'var(--text-faint)')}">${m.my_master_rating!=null ? 'MR '+m.my_master_rating : ''}</div>
-            </div>`).join('')}
+            </div>`).join('') : `<div class="empty">この対戦形式のデータはまだありません</div>`}
         </div>
       </div>
     `;
+
+    $$('#cfnFilterRow button').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        state.cfnFilter = btn.dataset.filter;
+        renderCfn();
+      });
+    });
   }
 
   // ---------- Export ----------
