@@ -840,6 +840,27 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     return Object.entries(map).sort((a,b)=>b[1].count-a[1].count);
   }
 
+  function renderMrChartSvg(points){
+    const width = 600, height = 150, pad = 10;
+    const values = points.map(p=>p.y);
+    const minV = Math.min(...values), maxV = Math.max(...values);
+    const range = (maxV - minV) || 1;
+    const stepX = points.length>1 ? (width - pad*2) / (points.length-1) : 0;
+    const coords = points.map((p,i)=>{
+      const x = pad + i*stepX;
+      const y = pad + (height - pad*2) * (1 - (p.y - minV)/range);
+      return { x, y };
+    });
+    const polyline = coords.map(c=>`${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(' ');
+    const last = coords[coords.length-1];
+    return `
+      <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" style="width:100%; height:150px; display:block;">
+        <polyline points="${polyline}" fill="none" stroke="var(--cyan)" stroke-width="2.5" vector-effect="non-scaling-stroke"/>
+        <circle cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="4" fill="var(--gold)"/>
+      </svg>
+    `;
+  }
+
   function renderCfn(){
     const rawAll = state.cfnMatches;
 
@@ -890,6 +911,16 @@ nav.mobile-nav button.active{ color: var(--cyan); }
 
     const topOpp = monthOppChar[0];
 
+    const mrHistoryAll = [...all]
+      .filter(m=>m.my_master_rating!=null)
+      .sort((a,b)=>a.played_at.localeCompare(b.played_at));
+    const MR_CHART_MAX_POINTS = 200;
+    const mrHistory = mrHistoryAll.slice(-MR_CHART_MAX_POINTS);
+    const mrPoints = mrHistory.map(m=>({ x: m.played_at, y: m.my_master_rating }));
+    const mrMin = mrPoints.length ? Math.min(...mrPoints.map(p=>p.y)) : null;
+    const mrMax = mrPoints.length ? Math.max(...mrPoints.map(p=>p.y)) : null;
+    const mrLatest = mrPoints.length ? mrPoints[mrPoints.length-1].y : null;
+
     main.innerHTML = `
       <div class="view active">
         <div class="section-title">対戦形式</div>
@@ -906,6 +937,18 @@ nav.mobile-nav button.active{ color: var(--cyan); }
             <div class="mini-stat"><div class="num">${mrStart!=null ? `${mrStart}→${mrEnd}` : '—'}</div><div class="lbl">MR推移</div></div>
           </div>
           ${topOpp ? `<div class="updated-note" style="text-align:left; margin-top:12px;">一番戦った相手: ${topOpp[0]} ${topOpp[1].count}戦（勝率 ${(topOpp[1].win/topOpp[1].count*100).toFixed(1)}%）</div>` : ''}
+        </div>
+
+        <div class="section-title">MR推移${mrHistoryAll.length>MR_CHART_MAX_POINTS ? `（直近${MR_CHART_MAX_POINTS}戦）` : ''}</div>
+        <div class="card">
+          ${mrPoints.length>=2 ? `
+            ${renderMrChartSvg(mrPoints)}
+            <div class="updated-note" style="text-align:left; margin-top:4px; display:flex; justify-content:space-between;">
+              <span>最小 ${mrMin}</span>
+              <span>最大 ${mrMax}</span>
+              <span>現在 ${mrLatest}</span>
+            </div>
+          ` : `<div class="empty">MRデータがまだ足りません（ランクマッチを2戦以上同期すると表示されます）</div>`}
         </div>
 
         <div class="section-title">通算成績</div>
