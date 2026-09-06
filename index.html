@@ -591,7 +591,7 @@ nav.mobile-nav button.active{ color: var(--cyan); }
             <div class="recent-item">
               <div class="left">
                 <div class="cat">${m.result==='win'?'WIN':(m.result==='loss'?'LOSS':'?')} ・ ${m.my_character||'?'} vs ${m.opponent_character||'?'}</div>
-                <div class="meta">${fmtDateShort(dateKeyLocal(m.played_at))}</div>
+                <div class="meta">${fmtDateShort(dateKeyLocal(m.played_at))} ・ ${m.battle_type||'不明'}</div>
               </div>
               <div class="dur">${m.my_master_rating!=null ? 'MR '+m.my_master_rating : ''}</div>
             </div>`).join('') : `<div class="empty">まだ対戦データがありません。sync-cfn.jsを実行して同期してみてください。</div>`}
@@ -920,6 +920,8 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     const mrMin = mrPoints.length ? Math.min(...mrPoints.map(p=>p.y)) : null;
     const mrMax = mrPoints.length ? Math.max(...mrPoints.map(p=>p.y)) : null;
     const mrLatest = mrPoints.length ? mrPoints[mrPoints.length-1].y : null;
+    const mrPeriodStart = mrHistory.length ? new Date(mrHistory[0].played_at).toLocaleDateString('ja-JP',{year:'numeric',month:'numeric',day:'numeric'}) : null;
+    const mrPeriodEnd = mrHistory.length ? new Date(mrHistory[mrHistory.length-1].played_at).toLocaleDateString('ja-JP',{year:'numeric',month:'numeric',day:'numeric'}) : null;
 
     main.innerHTML = `
       <div class="view active">
@@ -942,6 +944,7 @@ nav.mobile-nav button.active{ color: var(--cyan); }
         <div class="section-title">MR推移${mrHistoryAll.length>MR_CHART_MAX_POINTS ? `（直近${MR_CHART_MAX_POINTS}戦）` : ''}</div>
         <div class="card">
           ${mrPoints.length>=2 ? `
+            <div class="updated-note" style="text-align:left; margin-bottom:4px;">${mrPeriodStart} 〜 ${mrPeriodEnd}</div>
             ${renderMrChartSvg(mrPoints)}
             <div class="updated-note" style="text-align:left; margin-top:4px; display:flex; justify-content:space-between;">
               <span>最小 ${mrMin}</span>
@@ -986,12 +989,31 @@ nav.mobile-nav button.active{ color: var(--cyan); }
               <div class="left">
                 <div class="cat">${m.result==='win'?'WIN':(m.result==='loss'?'LOSS':'?')} ・ ${m.my_character||'?'} vs ${m.opponent_character||'?'}</div>
                 <div class="meta">${new Date(m.played_at).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})} ・ ${m.battle_type||''}</div>
+                ${m.replay_id ? `
+                  <div class="meta" style="display:flex; align-items:center; gap:6px; margin-top:2px;">
+                    <span class="mono">${m.replay_id}</span>
+                    <button class="iconbtn" data-copy-replay="${m.replay_id}" title="リプレイIDをコピー">⧉</button>
+                  </div>
+                ` : ''}
               </div>
               <div class="dur" style="color:${m.result==='win'?'var(--cyan)':(m.result==='loss'?'var(--pink)':'var(--text-faint)')}">${m.my_master_rating!=null ? 'MR '+m.my_master_rating : ''}</div>
             </div>`).join('') : `<div class="empty">この対戦形式のデータはまだありません</div>`}
         </div>
       </div>
     `;
+
+    $$('[data-copy-replay]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        try{
+          await navigator.clipboard.writeText(btn.dataset.copyReplay);
+          const orig = btn.textContent;
+          btn.textContent = '✓';
+          setTimeout(()=>{ btn.textContent = orig; }, 1200);
+        }catch(e){
+          toast('コピーに失敗しました');
+        }
+      });
+    });
 
     $$('#cfnFilterRow button').forEach(btn=>{
       btn.addEventListener('click', ()=>{
