@@ -281,6 +281,26 @@ nav.mobile-nav button.active{ color: var(--cyan); }
   z-index:60; opacity:0; pointer-events:none; transition:opacity .2s;
 }
 .toast.show{ opacity:1; }
+
+#flagBtn{
+  position: fixed;
+  right: 16px;
+  bottom: 76px;
+  width: 54px; height: 54px;
+  border-radius: 50%;
+  background: var(--gold);
+  border: none;
+  color: #2b1c04;
+  font-size: 24px;
+  display: flex; align-items:center; justify-content:center;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+  z-index: 55;
+  transition: transform .12s;
+}
+#flagBtn:active{ transform: scale(0.92); }
+#flagBtn:hover{ filter: brightness(1.08); }
+@media (min-width:720px){ #flagBtn{ bottom: 24px; } }
 @media (min-width:720px){ .toast{ bottom:24px; } }
 
 ::-webkit-scrollbar{ width:8px; height:8px; }
@@ -337,6 +357,7 @@ nav.mobile-nav button.active{ color: var(--cyan); }
 </div>
 
 <div class="toast" id="toast"></div>
+<button id="flagBtn" title="今の場面をマーク">⭐</button>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
@@ -357,6 +378,7 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     matchups: {},
     memos: [],
     cfnMatches: [],
+    moments: [],
     view: "dashboard",
     matchupOpen: null,
     calYear: now0.getFullYear(),
@@ -381,18 +403,20 @@ nav.mobile-nav button.active{ color: var(--cyan); }
   // ---------- Data layer (Supabase) ----------
   async function loadAll(){
     try{
-      const [{data: matchups, error: e2}, {data: memos, error: e3}, {data: cfnMatches, error: e4}] = await Promise.all([
+      const [{data: matchups, error: e2}, {data: memos, error: e3}, {data: cfnMatches, error: e4}, {data: moments, error: e5}] = await Promise.all([
         sb.from('matchup_notes').select('*'),
         sb.from('quick_memos').select('*').order('created_at', {ascending:false}),
-        sb.from('cfn_matches').select('*').order('played_at', {ascending:false}).limit(1000)
+        sb.from('cfn_matches').select('*').order('played_at', {ascending:false}).limit(1000),
+        sb.from('flagged_moments').select('*').order('flagged_at', {ascending:false})
       ]);
-      if(e2 || e3 || e4) throw (e2 || e3 || e4);
+      if(e2 || e3 || e4 || e5) throw (e2 || e3 || e4 || e5);
       state.matchups = {};
       (matchups||[]).forEach(m=>{
         state.matchups[m.character] = { notes: m.notes||'', tags: m.tags||[], rating: m.rating||null, updatedAt: m.updated_at };
       });
       state.memos = (memos||[]).map(m=>({ id:m.id, content:m.content, createdAt:m.created_at }));
       state.cfnMatches = (cfnMatches||[]);
+      state.moments = (moments||[]).map(mo=>({ id:mo.id, flaggedAt:mo.flagged_at, note:mo.note||'' }));
       setSync('ok');
     }catch(e){
       console.error('load failed', e);
@@ -462,6 +486,63 @@ nav.mobile-nav button.active{ color: var(--cyan); }
       setSync('err');
       toast('削除に失敗しました');
     }
+  }
+
+  async function addMoment(){
+    try{
+      const { data, error } = await sb.from('flagged_moments').insert({ flagged_at: new Date().toISOString() }).select().single();
+      if(error) throw error;
+      state.moments.unshift({ id:data.id, flaggedAt:data.flagged_at, note:'' });
+      setSync('ok');
+      return true;
+    }catch(e){
+      console.error('add moment failed', e);
+      setSync('err');
+      toast('マークに失敗しました');
+      return false;
+    }
+  }
+
+  async function updateMomentNote(id, note){
+    try{
+      const { error } = await sb.from('flagged_moments').update({ note }).eq('id', id);
+      if(error) throw error;
+      const idx = state.moments.findIndex(mo=>mo.id===id);
+      if(idx>=0) state.moments[idx].note = note;
+      setSync('ok');
+    }catch(e){
+      console.error('update moment failed', e);
+      setSync('err');
+      toast('メモの保存に失敗しました');
+    }
+  }
+
+  async function deleteMoment(id){
+    try{
+      const { error } = await sb.from('flagged_moments').delete().eq('id', id);
+      if(error) throw error;
+      state.moments = state.moments.filter(mo=>mo.id!==id);
+      setSync('ok');
+    }catch(e){
+      console.error('delete moment failed', e);
+      setSync('err');
+      toast('削除に失敗しました');
+    }
+  }
+
+  // マークした時刻の直後に終わった試合を探す（プレイ中にマーク→その試合が少し後にアップロードされる想定）
+  function findNearestMatchTo(flaggedAtIso){
+    const flagTime = new Date(flaggedAtIso).getTime();
+    const WINDOW_MS = 60*60*1000; // 60分
+    let best = null, bestDiff = Infinity;
+    state.cfnMatches.forEach(mt=>{
+      const diff = new Date(mt.played_at).getTime() - flagTime;
+      if(diff >= -5*60*1000 && diff <= WINDOW_MS){
+        const absDiff = Math.abs(diff);
+        if(absDiff < bestDiff){ bestDiff = absDiff; best = mt; }
+      }
+    });
+    return best;
   }
 
   // ---------- helpers ----------
@@ -805,6 +886,29 @@ nav.mobile-nav button.active{ color: var(--cyan); }
   function renderMemo(){
     main.innerHTML = `
       <div class="view active">
+        <div class="section-title">気になる場面</div>
+        ${state.moments.length ? state.moments.map(mo=>{
+          const match = findNearestMatchTo(mo.flaggedAt);
+          return `
+            <div class="card" style="margin-bottom:8px;">
+              <div class="memo-card-head">
+                <div style="flex:1;">
+                  <div class="updated-note" style="text-align:left; margin-bottom:4px;">${fmtDateTime(mo.flaggedAt)}</div>
+                  ${match ? `
+                    <div class="cat">${match.result==='win'?'WIN':(match.result==='loss'?'LOSS':'?')} ・ ${match.my_character||'?'} vs ${match.opponent_character||'?'}</div>
+                    <div class="meta">${match.battle_type||''}${match.replay_id ? ' ・ '+match.replay_id : ''}</div>
+                  ` : `<div class="empty" style="padding:2px 0; text-align:left;">対応する試合がまだ見つかりません（同期後にもう一度開いてみてください）</div>`}
+                </div>
+                <div class="memo-actions">
+                  <button class="danger" data-moment-del="${mo.id}" title="削除">✕</button>
+                </div>
+              </div>
+              <textarea data-moment-note="${mo.id}" placeholder="気づいたこと・見返したい理由をメモ" style="min-height:56px; margin-top:8px;">${escapeHtml(mo.note||'')}</textarea>
+            </div>
+          `;
+        }).join('') : `<div class="card"><div class="empty">まだマークがありません。プレイ中に右下の⭐ボタンを押すと、ここに記録されます</div></div>`}
+
+        <div class="section-title">メモ</div>
         <div class="card">
           <label class="field-label">新しいメモ</label>
           <textarea id="memoInput" placeholder="気づいたこと、思いついたことを一言" style="min-height:70px;"></textarea>
@@ -838,6 +942,23 @@ nav.mobile-nav button.active{ color: var(--cyan); }
         }).join('') : `<div class="card"><div class="empty">まだメモがありません</div></div>`}
       </div>
     `;
+
+    $$('[data-moment-del]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        btn.disabled = true;
+        await deleteMoment(btn.dataset.momentDel);
+        render();
+      });
+    });
+    $$('[data-moment-note]').forEach(ta=>{
+      let debounceId;
+      ta.addEventListener('input', ()=>{
+        clearTimeout(debounceId);
+        debounceId = setTimeout(()=>{
+          updateMomentNote(ta.dataset.momentNote, ta.value);
+        }, 600);
+      });
+    });
 
     $("#memoAddBtn").addEventListener('click', async ()=>{
       const ta = $("#memoInput");
@@ -1137,6 +1258,17 @@ nav.mobile-nav button.active{ color: var(--cyan); }
       btn.addEventListener('click', ()=> switchView(btn.dataset.view));
     });
     $("#exportBtn").addEventListener('click', exportData);
+    $("#flagBtn").addEventListener('click', async ()=>{
+      const btn = $("#flagBtn");
+      btn.disabled = true;
+      const ok = await addMoment();
+      btn.disabled = false;
+      if(ok){
+        const t = new Date();
+        toast(`マークしました（${t.getHours()}:${String(t.getMinutes()).padStart(2,'0')}）`);
+        if(state.view==='memo') render();
+      }
+    });
 
     await loadAll();
     render();
