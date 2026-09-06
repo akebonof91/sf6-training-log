@@ -29,6 +29,24 @@
   --radius: 10px;
 }
 
+:root[data-theme="light"]{
+  --bg: #f4f5f8;
+  --panel: #ffffff;
+  --panel-alt: #eef0f4;
+  --border: #dde1e8;
+  --border-soft: #e7e9ee;
+  --cyan: #0088a8;
+  --cyan-dim: #016b85;
+  --pink: #d6234f;
+  --pink-dim: #a4183d;
+  --gold: #a8690a;
+  --text: #14161c;
+  --text-mute: #5c6070;
+  --text-faint: #8a8ea0;
+}
+
+body{ transition: background-color .15s, color .15s; }
+
 *{box-sizing:border-box; margin:0; padding:0;}
 html,body{height:100%;}
 body{
@@ -83,6 +101,12 @@ header{
   border-radius:6px; cursor:pointer; font-family:'Inter',sans-serif; letter-spacing:0.03em;
 }
 #exportBtn:hover{ border-color:var(--cyan); color:var(--cyan); }
+#themeToggleBtn{
+  background:none; border:1px solid var(--border); color:var(--text-mute);
+  font-size:13px; width:28px; height:28px; border-radius:6px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; line-height:1;
+}
+#themeToggleBtn:hover{ border-color:var(--cyan); color:var(--cyan); }
 
 nav.desktop-nav{ display:none; padding: 14px 20px 0; gap: 4px; border-bottom: 1px solid var(--border-soft); }
 nav.desktop-nav button{
@@ -276,6 +300,7 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     </div>
     <div class="header-actions">
       <span id="syncDot" title="同期状態"></span>
+      <button id="themeToggleBtn" title="テーマ切り替え">🌙</button>
       <button id="exportBtn">エクスポート</button>
     </div>
   </header>
@@ -887,6 +912,15 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     if(state.cfnFilter!=='all' && !types.includes(state.cfnFilter)) state.cfnFilter = 'all';
     const all = state.cfnFilter==='all' ? rawAll : rawAll.filter(m=>(m.battle_type||'不明')===state.cfnFilter);
 
+    // MRはランクマッチでのみ変動するため、対戦形式フィルターの選択に関わらず常にランクマッチ全体を対象にする
+    const rankedMatches = rawAll.filter(m=>(m.battle_type||'')==='ランクマッチ');
+    const mrHistoryAllTime = rankedMatches
+      .filter(m=>m.my_master_rating!=null)
+      .sort((a,b)=>a.played_at.localeCompare(b.played_at));
+    // マスター帯未満だとmaster_ratingが存在せず常にnullになるため、その場合はLP(リーグポイント)にフォールバックする
+    const useMr = mrHistoryAllTime.length>=2;
+    const progressLabel = useMr ? 'MR' : 'LP';
+
     const nowKey = monthKeyLocal(new Date().toISOString());
     const monthMatches = all.filter(m=>monthKeyLocal(m.played_at)===nowKey);
 
@@ -894,10 +928,12 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     const monthWins = monthMatches.filter(m=>m.result==='win').length;
     const monthWinRate = monthTotal>0 ? (monthWins/monthTotal*100).toFixed(1) : '0.0';
 
-    const monthRankedMatches = rawAll.filter(m=>(m.battle_type||'')==='ランクマッチ' && monthKeyLocal(m.played_at)===nowKey);
-    const mrSorted = [...monthRankedMatches].filter(m=>m.my_master_rating!=null).sort((a,b)=>a.played_at.localeCompare(b.played_at));
-    const mrStart = mrSorted.length ? mrSorted[0].my_master_rating : null;
-    const mrEnd = mrSorted.length ? mrSorted[mrSorted.length-1].my_master_rating : null;
+    const monthRankedMatches = rankedMatches.filter(m=>monthKeyLocal(m.played_at)===nowKey);
+    const monthProgressSorted = [...monthRankedMatches]
+      .filter(m=> useMr ? m.my_master_rating!=null : m.my_league_point!=null)
+      .sort((a,b)=>a.played_at.localeCompare(b.played_at));
+    const monthProgressStart = monthProgressSorted.length ? (useMr ? monthProgressSorted[0].my_master_rating : monthProgressSorted[0].my_league_point) : null;
+    const monthProgressEnd = monthProgressSorted.length ? (useMr ? monthProgressSorted[monthProgressSorted.length-1].my_master_rating : monthProgressSorted[monthProgressSorted.length-1].my_league_point) : null;
 
     const monthOppChar = sortedEntries(groupByCount(monthMatches, m=>m.opponent_character));
 
@@ -912,18 +948,19 @@ nav.mobile-nav button.active{ color: var(--cyan); }
 
     const topOpp = monthOppChar[0];
 
-    // MRはランクマッチでのみ変動するため、対戦形式フィルターの選択に関わらず常にランクマッチのみを対象にする
-    const mrHistoryAll = rawAll
-      .filter(m=>(m.battle_type||'')==='ランクマッチ' && m.my_master_rating!=null)
+    const progressHistoryAll = useMr ? mrHistoryAllTime : rankedMatches
+      .filter(m=>m.my_league_point!=null)
       .sort((a,b)=>a.played_at.localeCompare(b.played_at));
-    const MR_CHART_MAX_POINTS = 200;
-    const mrHistory = mrHistoryAll.slice(-MR_CHART_MAX_POINTS);
-    const mrPoints = mrHistory.map(m=>({ x: m.played_at, y: m.my_master_rating }));
-    const mrMin = mrPoints.length ? Math.min(...mrPoints.map(p=>p.y)) : null;
-    const mrMax = mrPoints.length ? Math.max(...mrPoints.map(p=>p.y)) : null;
-    const mrLatest = mrPoints.length ? mrPoints[mrPoints.length-1].y : null;
-    const mrPeriodStart = mrHistory.length ? new Date(mrHistory[0].played_at).toLocaleDateString('ja-JP',{year:'numeric',month:'numeric',day:'numeric'}) : null;
-    const mrPeriodEnd = mrHistory.length ? new Date(mrHistory[mrHistory.length-1].played_at).toLocaleDateString('ja-JP',{year:'numeric',month:'numeric',day:'numeric'}) : null;
+    const progressTitle = useMr ? 'MR推移（ランクマッチのみ・全形式共通）' : 'LP推移（ランクマッチのみ・マスター未到達のためLP表示）';
+
+    const CHART_MAX_POINTS = 200;
+    const progressHistory = progressHistoryAll.slice(-CHART_MAX_POINTS);
+    const progressPoints = progressHistory.map(m=>({ x: m.played_at, y: useMr ? m.my_master_rating : m.my_league_point }));
+    const progressMin = progressPoints.length ? Math.min(...progressPoints.map(p=>p.y)) : null;
+    const progressMax = progressPoints.length ? Math.max(...progressPoints.map(p=>p.y)) : null;
+    const progressLatest = progressPoints.length ? progressPoints[progressPoints.length-1].y : null;
+    const progressPeriodStart = progressHistory.length ? new Date(progressHistory[0].played_at).toLocaleDateString('ja-JP',{year:'numeric',month:'numeric',day:'numeric'}) : null;
+    const progressPeriodEnd = progressHistory.length ? new Date(progressHistory[progressHistory.length-1].played_at).toLocaleDateString('ja-JP',{year:'numeric',month:'numeric',day:'numeric'}) : null;
 
     main.innerHTML = `
       <div class="view active">
@@ -938,22 +975,22 @@ nav.mobile-nav button.active{ color: var(--cyan); }
           <div class="stat-grid" style="grid-template-columns: repeat(3,1fr);">
             <div class="mini-stat"><div class="num">${monthTotal}戦</div><div class="lbl">対戦数</div></div>
             <div class="mini-stat"><div class="num">${monthWinRate}%</div><div class="lbl">勝率</div></div>
-            <div class="mini-stat"><div class="num">${mrStart!=null ? `${mrStart}→${mrEnd}` : '—'}</div><div class="lbl">MR推移</div></div>
+            <div class="mini-stat"><div class="num">${monthProgressStart!=null ? `${monthProgressStart}→${monthProgressEnd}` : '—'}</div><div class="lbl">${progressLabel}推移</div></div>
           </div>
           ${topOpp ? `<div class="updated-note" style="text-align:left; margin-top:12px;">一番戦った相手: ${topOpp[0]} ${topOpp[1].count}戦（勝率 ${(topOpp[1].win/topOpp[1].count*100).toFixed(1)}%）</div>` : ''}
         </div>
 
-        <div class="section-title">MR推移（ランクマッチのみ・全形式共通）${mrHistoryAll.length>MR_CHART_MAX_POINTS ? `／直近${MR_CHART_MAX_POINTS}戦` : ''}</div>
+        <div class="section-title">${progressTitle}${progressHistoryAll.length>CHART_MAX_POINTS ? `／直近${CHART_MAX_POINTS}戦` : ''}</div>
         <div class="card">
-          ${mrPoints.length>=2 ? `
-            <div class="updated-note" style="text-align:left; margin-bottom:4px;">${mrPeriodStart} 〜 ${mrPeriodEnd}</div>
-            ${renderMrChartSvg(mrPoints)}
+          ${progressPoints.length>=2 ? `
+            <div class="updated-note" style="text-align:left; margin-bottom:4px;">${progressPeriodStart} 〜 ${progressPeriodEnd}</div>
+            ${renderMrChartSvg(progressPoints)}
             <div class="updated-note" style="text-align:left; margin-top:4px; display:flex; justify-content:space-between;">
-              <span>最小 ${mrMin}</span>
-              <span>最大 ${mrMax}</span>
-              <span>現在 ${mrLatest}</span>
+              <span>最小 ${progressMin}</span>
+              <span>最大 ${progressMax}</span>
+              <span>現在 ${progressLatest}</span>
             </div>
-          ` : `<div class="empty">MRデータがまだ足りません（ランクマッチを2戦以上同期すると表示されます）</div>`}
+          ` : `<div class="empty">${progressLabel}データがまだ足りません（ランクマッチを2戦以上同期すると表示されます）</div>`}
         </div>
 
         <div class="section-title">通算成績</div>
@@ -1035,7 +1072,30 @@ nav.mobile-nav button.active{ color: var(--cyan); }
   function isMobile(){ return window.innerWidth < 720; }
   function setupNavVisibility(){ $("#mobileNav").style.display = isMobile() ? 'flex' : 'none'; }
 
+  function applyTheme(theme){
+    if(theme === 'light'){
+      document.documentElement.setAttribute('data-theme', 'light');
+      $("#themeToggleBtn").textContent = '☀️';
+    }else{
+      document.documentElement.removeAttribute('data-theme');
+      $("#themeToggleBtn").textContent = '🌙';
+    }
+  }
+  function initTheme(){
+    let saved = null;
+    try{ saved = localStorage.getItem('sf6-theme'); }catch(e){}
+    applyTheme(saved === 'light' ? 'light' : 'dark');
+  }
+  function toggleTheme(){
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    const next = isLight ? 'dark' : 'light';
+    applyTheme(next);
+    try{ localStorage.setItem('sf6-theme', next); }catch(e){}
+  }
+
   async function init(){
+    initTheme();
+    $("#themeToggleBtn").addEventListener('click', toggleTheme);
     setupNavVisibility();
     window.addEventListener('resize', setupNavVisibility);
     $$('.desktop-nav button, .mobile-nav button').forEach(btn=>{
