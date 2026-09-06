@@ -899,7 +899,7 @@ nav.mobile-nav button.active{ color: var(--cyan); }
       return;
     }
 
-    const preferredOrder = ["ランクマッチ","バトルハブ","カスタムルーム","カジュアルマッチ"];
+    const preferredOrder = ["RANKED MATCH","BATTLE HUB","CUSTOM ROOM","CASUAL MATCH"];
     const typeCounts = {};
     rawAll.forEach(m=>{ const t = m.battle_type || '不明'; typeCounts[t] = (typeCounts[t]||0)+1; });
     const types = Object.keys(typeCounts).sort((a,b)=>{
@@ -913,7 +913,7 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     const all = state.cfnFilter==='all' ? rawAll : rawAll.filter(m=>(m.battle_type||'不明')===state.cfnFilter);
 
     // MRはランクマッチでのみ変動するため、対戦形式フィルターの選択に関わらず常にランクマッチ全体を対象にする
-    const rankedMatches = rawAll.filter(m=>(m.battle_type||'')==='ランクマッチ');
+    const rankedMatches = rawAll.filter(m=>(m.battle_type||'')==='RANKED MATCH');
     const mrHistoryAllTime = rankedMatches
       .filter(m=>m.my_master_rating!=null)
       .sort((a,b)=>a.played_at.localeCompare(b.played_at));
