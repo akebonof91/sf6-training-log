@@ -690,13 +690,45 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     });
   }
 
+  function getCfnRecordVs(charName){
+    const matches = state.cfnMatches.filter(m=>m.opponent_character===charName);
+    const total = matches.length;
+    const wins = matches.filter(m=>m.result==='win').length;
+    const winRate = total>0 ? (wins/total*100).toFixed(1) : null;
+    const recentVs = [...matches].sort((a,b)=>b.played_at.localeCompare(a.played_at)).slice(0,5);
+    return { total, wins, winRate, recentVs };
+  }
+
   function renderMatchupDetail(charName){
     const m = state.matchups[charName] || { notes:'', tags:[], rating:null, updatedAt:null };
+    const cfnRecord = getCfnRecordVs(charName);
 
     main.innerHTML = `
       <div class="view active">
         <button class="detail-back" id="backBtn">← キャラクター一覧</button>
         <div class="detail-header"><h2>${charName}</h2></div>
+
+        <div class="section-title">実際の対戦成績</div>
+        <div class="card">
+          ${cfnRecord.total>0 ? `
+            <div class="stat-grid" style="grid-template-columns: repeat(3,1fr);">
+              <div class="mini-stat"><div class="num">${cfnRecord.total}戦</div><div class="lbl">対戦数</div></div>
+              <div class="mini-stat"><div class="num">${cfnRecord.wins}勝${cfnRecord.total-cfnRecord.wins}敗</div><div class="lbl">戦績</div></div>
+              <div class="mini-stat"><div class="num">${cfnRecord.winRate}%</div><div class="lbl">勝率</div></div>
+            </div>
+            <div class="updated-note" style="text-align:left; margin-top:12px; margin-bottom:4px;">直近の対戦</div>
+            ${cfnRecord.recentVs.map(rm=>`
+              <div class="recent-item">
+                <div class="left">
+                  <div class="cat">${rm.result==='win'?'WIN':(rm.result==='loss'?'LOSS':'?')} ・ 使用: ${rm.my_character||'?'}</div>
+                  <div class="meta">${new Date(rm.played_at).toLocaleDateString('ja-JP',{month:'numeric',day:'numeric'})} ・ ${rm.battle_type||''}</div>
+                </div>
+                <div class="dur" style="color:${rm.result==='win'?'var(--cyan)':(rm.result==='loss'?'var(--pink)':'var(--text-faint)')}">${(rm.battle_type==='RANKED MATCH' && rm.my_master_rating!=null) ? 'MR '+rm.my_master_rating : ''}</div>
+              </div>
+            `).join('')}
+          ` : `<div class="empty">まだこのキャラとの対戦データがありません（sync-cfn.jsで同期すると表示されます）</div>`}
+        </div>
+
         <label class="field-label">この対面の印象</label>
         <div class="rating-row">
           <button class="rating-btn ${m.rating==='fav'?'sel-fav':''}" data-rating="fav">有利</button>
