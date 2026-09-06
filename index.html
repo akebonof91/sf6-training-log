@@ -618,7 +618,7 @@ nav.mobile-nav button.active{ color: var(--cyan); }
                 <div class="cat">${m.result==='win'?'WIN':(m.result==='loss'?'LOSS':'?')} ・ ${m.my_character||'?'} vs ${m.opponent_character||'?'}</div>
                 <div class="meta">${fmtDateShort(dateKeyLocal(m.played_at))} ・ ${m.battle_type||'不明'}</div>
               </div>
-              <div class="dur">${m.my_master_rating!=null ? 'MR '+m.my_master_rating : ''}</div>
+              <div class="dur">${(m.battle_type==='RANKED MATCH' && m.my_master_rating!=null) ? 'MR '+m.my_master_rating : ''}</div>
             </div>`).join('') : `<div class="empty">まだ対戦データがありません。sync-cfn.jsを実行して同期してみてください。</div>`}
         </div>
       </div>
@@ -651,8 +651,11 @@ nav.mobile-nav button.active{ color: var(--cyan); }
         <div class="cal-detail-head">${fmtDateShort(iso)} ・ ${dayMatches.length}戦（${wins}勝${dayMatches.length-wins}敗）</div>
         ${dayMatches.length? dayMatches.map(m=>`
           <div class="recent-item">
-            <div class="left"><div class="cat">${m.result==='win'?'WIN':(m.result==='loss'?'LOSS':'?')} ・ ${m.my_character||'?'} vs ${m.opponent_character||'?'}</div></div>
-            <div class="dur">${m.my_master_rating!=null ? 'MR '+m.my_master_rating : ''}</div>
+            <div class="left">
+              <div class="cat">${m.result==='win'?'WIN':(m.result==='loss'?'LOSS':'?')} ・ ${m.my_character||'?'} vs ${m.opponent_character||'?'}</div>
+              <div class="meta">${m.battle_type||'不明'}</div>
+            </div>
+            <div class="dur">${(m.battle_type==='RANKED MATCH' && m.my_master_rating!=null) ? 'MR '+m.my_master_rating : ''}</div>
           </div>`).join('') : `<div class="empty">この日の記録はありません</div>`}
       </div>
     `;
@@ -1030,7 +1033,7 @@ nav.mobile-nav button.active{ color: var(--cyan); }
                 <div class="meta">${new Date(m.played_at).toLocaleString('ja-JP',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})} ・ ${m.battle_type||''}</div>
                 ${m.replay_id ? `<div class="meta mono" style="margin-top:2px;">${m.replay_id}</div>` : ''}
               </div>
-              <div class="dur" style="color:${m.result==='win'?'var(--cyan)':(m.result==='loss'?'var(--pink)':'var(--text-faint)')}">${m.my_master_rating!=null ? 'MR '+m.my_master_rating : ''}</div>
+              <div class="dur" style="color:${m.result==='win'?'var(--cyan)':(m.result==='loss'?'var(--pink)':'var(--text-faint)')}">${(m.battle_type==='RANKED MATCH' && m.my_master_rating!=null) ? 'MR '+m.my_master_rating : ''}</div>
             </div>`).join('') : `<div class="empty">この対戦形式のデータはまだありません</div>`}
         </div>
       </div>
