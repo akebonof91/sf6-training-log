@@ -385,7 +385,9 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     calMonth: now0.getMonth(),
     selectedDate: null,
     editingMemoId: null,
-    cfnFilter: "all"
+    cfnFilter: "all",
+    progressChar: null,
+    oppFilterChar: "all"
   };
 
   const $ = sel => document.querySelector(sel);
@@ -1097,9 +1099,18 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     if(state.cfnFilter!=='all' && !types.includes(state.cfnFilter)) state.cfnFilter = 'all';
     const all = state.cfnFilter==='all' ? rawAll : rawAll.filter(m=>(m.battle_type||'不明')===state.cfnFilter);
 
-    // MRはランクマッチでのみ変動するため、対戦形式フィルターの選択に関わらず常にランクマッチ全体を対象にする
+    // MRはキャラクターごとに別々に保有される（アカウント共通ではない）ため、
+    // ランクマッチのデータを使用キャラごとに分けて扱う。対戦形式フィルターの選択には影響されない
     const rankedMatches = rawAll.filter(m=>(m.battle_type||'')==='RANKED MATCH');
-    const mrHistoryAllTime = rankedMatches
+    const rankedCharCounts = {};
+    rankedMatches.forEach(m=>{ const c = m.my_character||'不明'; rankedCharCounts[c] = (rankedCharCounts[c]||0)+1; });
+    const rankedChars = Object.keys(rankedCharCounts).sort((a,b)=>rankedCharCounts[b]-rankedCharCounts[a]);
+    if(!state.progressChar || !rankedChars.includes(state.progressChar)){
+      state.progressChar = rankedChars[0] || null;
+    }
+    const charRankedMatches = state.progressChar ? rankedMatches.filter(m=>(m.my_character||'不明')===state.progressChar) : [];
+
+    const mrHistoryAllTime = charRankedMatches
       .filter(m=>m.my_master_rating!=null)
       .sort((a,b)=>a.played_at.localeCompare(b.played_at));
     // マスター帯未満だとmaster_ratingが存在せず常にnullになるため、その場合はLP(リーグポイント)にフォールバックする
@@ -1113,7 +1124,7 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     const monthWins = monthMatches.filter(m=>m.result==='win').length;
     const monthWinRate = monthTotal>0 ? (monthWins/monthTotal*100).toFixed(1) : '0.0';
 
-    const monthRankedMatches = rankedMatches.filter(m=>monthKeyLocal(m.played_at)===nowKey);
+    const monthRankedMatches = charRankedMatches.filter(m=>monthKeyLocal(m.played_at)===nowKey);
     const monthProgressSorted = [...monthRankedMatches]
       .filter(m=> useMr ? m.my_master_rating!=null : m.my_league_point!=null)
       .sort((a,b)=>a.played_at.localeCompare(b.played_at));
@@ -1127,16 +1138,23 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     const allWinRate = allTotal>0 ? (allWins/allTotal*100).toFixed(1) : '0.0';
 
     const myCharAll = sortedEntries(groupByCount(all, m=>m.my_character));
-    const oppCharAll = sortedEntries(groupByCount(all, m=>m.opponent_character));
+
+    if(state.oppFilterChar!=='all' && !myCharAll.some(([name])=>name===state.oppFilterChar)){
+      state.oppFilterChar = 'all';
+    }
+    const oppScopeMatches = state.oppFilterChar==='all' ? all : all.filter(m=>(m.my_character||'不明')===state.oppFilterChar);
+    const oppCharAll = sortedEntries(groupByCount(oppScopeMatches, m=>m.opponent_character));
 
     const recent = [...all].sort((a,b)=>b.played_at.localeCompare(a.played_at)).slice(0,15);
 
     const topOpp = monthOppChar[0];
 
-    const progressHistoryAll = useMr ? mrHistoryAllTime : rankedMatches
+    const progressHistoryAll = useMr ? mrHistoryAllTime : charRankedMatches
       .filter(m=>m.my_league_point!=null)
       .sort((a,b)=>a.played_at.localeCompare(b.played_at));
-    const progressTitle = useMr ? 'MR推移（ランクマッチのみ・全形式共通）' : 'LP推移（ランクマッチのみ・マスター未到達のためLP表示）';
+    const progressTitle = state.progressChar
+      ? `${progressLabel}推移（${state.progressChar}・ランクマッチのみ）`
+      : `${progressLabel}推移（ランクマッチのみ）`;
 
     const CHART_MAX_POINTS = 200;
     const progressHistory = progressHistoryAll.slice(-CHART_MAX_POINTS);
@@ -1166,16 +1184,16 @@ nav.mobile-nav button.active{ color: var(--cyan); }
         </div>
 
         <div class="section-title">${progressTitle}${progressHistoryAll.length>CHART_MAX_POINTS ? `／直近${CHART_MAX_POINTS}戦` : ''}</div>
+        ${rankedChars.length>1 ? `
+          <div class="rating-row" id="progressCharRow" style="flex-wrap:wrap; margin-bottom:10px;">
+            ${rankedChars.map(c=>`<button class="rating-btn ${state.progressChar===c?'sel-fav':''}" data-progress-char="${c}" style="flex:0 0 auto; padding:9px 14px;">${c}（${rankedCharCounts[c]}）</button>`).join('')}
+          </div>
+        ` : ''}
         <div class="card">
           ${progressPoints.length>=2 ? `
             <div class="updated-note" style="text-align:left; margin-bottom:4px;">${progressPeriodStart} 〜 ${progressPeriodEnd}</div>
             ${renderMrChartSvg(progressPoints)}
-            <div class="updated-note" style="text-align:left; margin-top:4px; display:flex; justify-content:space-between;">
-              <span>最小 ${progressMin}</span>
-              <span>最大 ${progressMax}</span>
-              <span>現在 ${progressLatest}</span>
-            </div>
-          ` : `<div class="empty">${progressLabel}データがまだ足りません（ランクマッチを2戦以上同期すると表示されます）</div>`}
+          ` : `<div class="empty">${progressLabel}データがまだ足りません（このキャラのランクマッチを2戦以上同期すると表示されます）</div>`}
         </div>
 
         <div class="section-title">通算成績</div>
@@ -1196,7 +1214,13 @@ nav.mobile-nav button.active{ color: var(--cyan); }
             </div>`).join('') : `<div class="empty">データがありません</div>`}
         </div>
 
-        <div class="section-title">対戦相手キャラ別成績</div>
+        <div class="section-title">対戦相手キャラ別成績${state.oppFilterChar!=='all' ? `（使用: ${state.oppFilterChar}）` : ''}</div>
+        ${myCharAll.length>1 ? `
+          <div class="rating-row" id="oppFilterCharRow" style="flex-wrap:wrap; margin-bottom:10px;">
+            <button class="rating-btn ${state.oppFilterChar==='all'?'sel-fav':''}" data-opp-char="all" style="flex:0 0 auto; padding:9px 14px;">すべて</button>
+            ${myCharAll.map(([name,v])=>`<button class="rating-btn ${state.oppFilterChar===name?'sel-fav':''}" data-opp-char="${name}" style="flex:0 0 auto; padding:9px 14px;">${name}（${v.count}）</button>`).join('')}
+          </div>
+        ` : ''}
         <div class="card">
           ${oppCharAll.length ? oppCharAll.map(([name,v])=>`
             <div class="cat-bar-row">
@@ -1224,6 +1248,18 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     $$('#cfnFilterRow button').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         state.cfnFilter = btn.dataset.filter;
+        renderCfn();
+      });
+    });
+    $$('#progressCharRow button').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        state.progressChar = btn.dataset.progressChar;
+        renderCfn();
+      });
+    });
+    $$('#oppFilterCharRow button').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        state.oppFilterChar = btn.dataset.oppChar;
         renderCfn();
       });
     });
