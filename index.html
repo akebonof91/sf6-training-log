@@ -381,6 +381,7 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     moments: [],
     view: "dashboard",
     matchupOpen: null,
+    matchupMyChar: "all",
     calYear: now0.getFullYear(),
     calMonth: now0.getMonth(),
     selectedDate: null,
@@ -774,12 +775,19 @@ nav.mobile-nav button.active{ color: var(--cyan); }
   }
 
   function getCfnRecordVs(charName){
-    const matches = state.cfnMatches.filter(m=>m.opponent_character===charName);
-    const total = matches.length;
-    const wins = matches.filter(m=>m.result==='win').length;
+    const rankedVsChar = state.cfnMatches.filter(m=>m.opponent_character===charName && m.battle_type==='RANKED MATCH');
+    const myCharCounts = {};
+    rankedVsChar.forEach(m=>{ const c = m.my_character||'不明'; myCharCounts[c] = (myCharCounts[c]||0)+1; });
+    const myChars = Object.keys(myCharCounts).sort((a,b)=>myCharCounts[b]-myCharCounts[a]);
+
+    if(state.matchupMyChar!=='all' && !myChars.includes(state.matchupMyChar)) state.matchupMyChar = 'all';
+    const scoped = state.matchupMyChar==='all' ? rankedVsChar : rankedVsChar.filter(m=>(m.my_character||'不明')===state.matchupMyChar);
+
+    const total = scoped.length;
+    const wins = scoped.filter(m=>m.result==='win').length;
     const winRate = total>0 ? (wins/total*100).toFixed(1) : null;
-    const recentVs = [...matches].sort((a,b)=>b.played_at.localeCompare(a.played_at)).slice(0,5);
-    return { total, wins, winRate, recentVs };
+    const recentVs = [...scoped].sort((a,b)=>b.played_at.localeCompare(a.played_at)).slice(0,5);
+    return { total, wins, winRate, recentVs, myChars, myCharCounts };
   }
 
   function renderMatchupDetail(charName){
@@ -791,7 +799,13 @@ nav.mobile-nav button.active{ color: var(--cyan); }
         <button class="detail-back" id="backBtn">← キャラクター一覧</button>
         <div class="detail-header"><h2>${charName}</h2></div>
 
-        <div class="section-title">実際の対戦成績</div>
+        <div class="section-title">実際の対戦成績（ランクマッチのみ）${state.matchupMyChar!=='all' ? `・使用: ${state.matchupMyChar}` : ''}</div>
+        ${cfnRecord.myChars.length>1 ? `
+          <div class="rating-row" id="matchupMyCharRow" style="flex-wrap:wrap; margin-bottom:10px;">
+            <button class="rating-btn ${state.matchupMyChar==='all'?'sel-fav':''}" data-matchup-char="all" style="flex:0 0 auto; padding:9px 14px;">すべて</button>
+            ${cfnRecord.myChars.map(c=>`<button class="rating-btn ${state.matchupMyChar===c?'sel-fav':''}" data-matchup-char="${c}" style="flex:0 0 auto; padding:9px 14px;">${c}（${cfnRecord.myCharCounts[c]}）</button>`).join('')}
+          </div>
+        ` : ''}
         <div class="card">
           ${cfnRecord.total>0 ? `
             <div class="stat-grid" style="grid-template-columns: repeat(3,1fr);">
@@ -806,10 +820,10 @@ nav.mobile-nav button.active{ color: var(--cyan); }
                   <div class="cat">${rm.result==='win'?'WIN':(rm.result==='loss'?'LOSS':'?')} ・ 使用: ${rm.my_character||'?'}</div>
                   <div class="meta">${new Date(rm.played_at).toLocaleDateString('ja-JP',{month:'numeric',day:'numeric'})} ・ ${rm.battle_type||''}</div>
                 </div>
-                <div class="dur" style="color:${rm.result==='win'?'var(--cyan)':(rm.result==='loss'?'var(--pink)':'var(--text-faint)')}">${(rm.battle_type==='RANKED MATCH' && rm.my_master_rating!=null) ? 'MR '+rm.my_master_rating : ''}</div>
+                <div class="dur" style="color:${rm.result==='win'?'var(--cyan)':(rm.result==='loss'?'var(--pink)':'var(--text-faint)')}">${rm.my_master_rating!=null ? 'MR '+rm.my_master_rating : ''}</div>
               </div>
             `).join('')}
-          ` : `<div class="empty">まだこのキャラとの対戦データがありません（sync-cfn.jsで同期すると表示されます）</div>`}
+          ` : `<div class="empty">まだこのキャラとのランクマッチデータがありません（sync-cfn.jsで同期すると表示されます）</div>`}
         </div>
 
         <label class="field-label">この対面の印象</label>
@@ -833,6 +847,12 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     `;
 
     $("#backBtn").addEventListener('click', ()=>{ state.matchupOpen=null; render(); });
+    $$('#matchupMyCharRow button').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        state.matchupMyChar = btn.dataset.matchupChar;
+        render();
+      });
+    });
 
     function ensure(){
       if(!state.matchups[charName]) state.matchups[charName] = { notes:'', tags:[], rating:null, updatedAt:null };
@@ -1133,10 +1153,6 @@ nav.mobile-nav button.active{ color: var(--cyan); }
 
     const monthOppChar = sortedEntries(groupByCount(monthMatches, m=>m.opponent_character));
 
-    const allTotal = all.length;
-    const allWins = all.filter(m=>m.result==='win').length;
-    const allWinRate = allTotal>0 ? (allWins/allTotal*100).toFixed(1) : '0.0';
-
     const myCharAll = sortedEntries(groupByCount(all, m=>m.my_character));
 
     if(state.oppFilterChar!=='all' && !myCharAll.some(([name])=>name===state.oppFilterChar)){
@@ -1144,6 +1160,11 @@ nav.mobile-nav button.active{ color: var(--cyan); }
     }
     const oppScopeMatches = state.oppFilterChar==='all' ? all : all.filter(m=>(m.my_character||'不明')===state.oppFilterChar);
     const oppCharAll = sortedEntries(groupByCount(oppScopeMatches, m=>m.opponent_character));
+
+    // 通算成績は「使用キャラ別成績」の絞り込み(oppFilterChar)に連動させる
+    const allTotal = oppScopeMatches.length;
+    const allWins = oppScopeMatches.filter(m=>m.result==='win').length;
+    const allWinRate = allTotal>0 ? (allWins/allTotal*100).toFixed(1) : '0.0';
 
     const recent = [...all].sort((a,b)=>b.played_at.localeCompare(a.played_at)).slice(0,15);
 
@@ -1196,14 +1217,6 @@ nav.mobile-nav button.active{ color: var(--cyan); }
           ` : `<div class="empty">${progressLabel}データがまだ足りません（このキャラのランクマッチを2戦以上同期すると表示されます）</div>`}
         </div>
 
-        <div class="section-title">通算成績</div>
-        <div class="card">
-          <div class="stat-grid" style="grid-template-columns: repeat(2,1fr);">
-            <div class="mini-stat"><div class="num">${allTotal}戦</div><div class="lbl">総対戦数</div></div>
-            <div class="mini-stat"><div class="num">${allWinRate}%</div><div class="lbl">通算勝率</div></div>
-          </div>
-        </div>
-
         <div class="section-title">使用キャラ別成績</div>
         <div class="card">
           ${myCharAll.length ? myCharAll.map(([name,v])=>`
@@ -1214,13 +1227,23 @@ nav.mobile-nav button.active{ color: var(--cyan); }
             </div>`).join('') : `<div class="empty">データがありません</div>`}
         </div>
 
-        <div class="section-title">対戦相手キャラ別成績${state.oppFilterChar!=='all' ? `（使用: ${state.oppFilterChar}）` : ''}</div>
         ${myCharAll.length>1 ? `
-          <div class="rating-row" id="oppFilterCharRow" style="flex-wrap:wrap; margin-bottom:10px;">
+          <div class="section-title">使用キャラで絞り込み</div>
+          <div class="rating-row" id="oppFilterCharRow" style="flex-wrap:wrap;">
             <button class="rating-btn ${state.oppFilterChar==='all'?'sel-fav':''}" data-opp-char="all" style="flex:0 0 auto; padding:9px 14px;">すべて</button>
             ${myCharAll.map(([name,v])=>`<button class="rating-btn ${state.oppFilterChar===name?'sel-fav':''}" data-opp-char="${name}" style="flex:0 0 auto; padding:9px 14px;">${name}（${v.count}）</button>`).join('')}
           </div>
         ` : ''}
+
+        <div class="section-title">通算成績${state.oppFilterChar!=='all' ? `（使用: ${state.oppFilterChar}）` : ''}</div>
+        <div class="card">
+          <div class="stat-grid" style="grid-template-columns: repeat(2,1fr);">
+            <div class="mini-stat"><div class="num">${allTotal}戦</div><div class="lbl">総対戦数</div></div>
+            <div class="mini-stat"><div class="num">${allWinRate}%</div><div class="lbl">通算勝率</div></div>
+          </div>
+        </div>
+
+        <div class="section-title">対戦相手キャラ別成績${state.oppFilterChar!=='all' ? `（使用: ${state.oppFilterChar}）` : ''}</div>
         <div class="card">
           ${oppCharAll.length ? oppCharAll.map(([name,v])=>`
             <div class="cat-bar-row">
